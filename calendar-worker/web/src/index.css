@@ -22,6 +22,8 @@ html, body {
 
 /* Custom styles for the calendar application */
 .calendar {
+  /* Match the normal Week view: 16 hour rows, weekday/weather header and pills. */
+  --calendar-view-height: 1320px;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
@@ -46,6 +48,7 @@ html, body {
 .calendar-month-view .grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
+  height: 100%;
   gap: 0px;
   background-color: #f3f4f6;
 }
@@ -62,6 +65,21 @@ html, body {
   grid-template-columns: 80px 1fr;
   gap: 0px;
   background-color: white;
+}
+
+.calendar-day-view {
+  display: flex;
+  flex-direction: column;
+}
+
+.calendar-day-view > .all-day-events-section {
+  flex-shrink: 0;
+}
+
+.calendar-day-view > .grid {
+  flex: 1 0 0;
+  /* Include the existing 2px margins above and below each hour's event cell. */
+  grid-auto-rows: minmax(64px, 1fr);
 }
 
 .animate-pulse {
@@ -231,7 +249,7 @@ html, body {
 
 .calendar-month-view .grid > div {
   background: white;
-  min-height: 120px;
+  min-height: 32px;
   padding: 8px;
 }
 
@@ -263,7 +281,9 @@ html, body {
 .calendar-month-view,
 .calendar-week-view,
 .calendar-day-view {
-  overflow: hidden;
+  height: var(--calendar-view-height, 1320px);
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 /* Sidebar styles */

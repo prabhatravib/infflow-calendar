@@ -17,7 +17,7 @@ const { outputText } = ts.transpileModule(readFileSync(sourceUrl, 'utf8'), {
 });
 const dateModule = {};
 new Function('require', 'exports', outputText)(createRequire(sourceUrl), dateModule);
-const { getCalendarDateRange, getNavigationDates, getWeekDays, getMonthDays } = dateModule;
+const { getCalendarDateRange, getNavigationDates, getWeekDays, getMonthDays, getWeekdayNames } = dateModule;
 
 function assertRange(date, view, firstDay, lastDay) {
   const { startDate, endDate } = getCalendarDateRange(date, view);
@@ -67,10 +67,33 @@ test('day navigation loads the whole day, independent of the anchor time', () =>
 
 test('month requests include the last evening and clickable adjacent-month cells', () => {
   const date = new Date('2026-09-13T21:45:00');
-  assertRange(date, 'month', '2026-08-30', '2026-10-03');
+  assertRange(date, 'month', '2026-08-31', '2026-10-04');
   const { startDate, endDate } = getCalendarDateRange(date, 'month');
   for (const day of getMonthDays(date)) {
-    assert.ok(day >= startDate && day <= endDate);
+    const lateEvent = new Date(day);
+    lateEvent.setHours(23, 59, 59, 999);
+    assert.ok(day >= startDate && lateEvent <= endDate);
+  }
+});
+
+test('month columns run Monday-Sunday across four-, five-, and six-week grids', () => {
+  assert.deepEqual(getWeekdayNames(1), ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
+  const cases = [
+    ['2027-02-15', '2027-02-01', '2027-02-28', 28],
+    ['2026-02-15', '2026-01-26', '2026-03-01', 35],
+    ['2026-09-15', '2026-08-31', '2026-10-04', 35],
+    ['2026-08-15', '2026-07-27', '2026-09-06', 42],
+    ['2026-12-15', '2026-11-30', '2027-01-03', 35],
+  ];
+
+  for (const [anchor, firstDay, lastDay, dayCount] of cases) {
+    const date = new Date(`${anchor}T21:45:00`);
+    assertRange(date, 'month', firstDay, lastDay);
+    const days = getMonthDays(date);
+    assert.equal(days.length, dayCount);
+    for (let index = 0; index < days.length; index++) {
+      assert.equal(days[index].getDay(), (index + 1) % 7);
+    }
   }
 });
 

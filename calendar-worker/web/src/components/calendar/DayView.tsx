@@ -203,7 +203,7 @@ export function DayView({ date, events, onEventClick, onTimeSlotClick }: DayView
       {/* Time grid - restructured for perfect alignment */}
       <div
         className="grid bg-white"
-        style={{ gridTemplateColumns: '80px 1fr', gap: '0px' }}
+        style={{ gridTemplateColumns: '80px 1fr', gap: '0px', minHeight: `${hours.length * 64 + 2}px` }}
       >
         {/* Render each hour as a single row spanning both columns */}
         {Array.isArray(hours) && hours.map((hour) => {
@@ -234,12 +234,12 @@ export function DayView({ date, events, onEventClick, onTimeSlotClick }: DayView
             <Fragment key={hourValue}>
               {/* Timeline column - hour label - NO horizontal lines, just the time */}
               <div
-                className={`text-sm text-black border-r relative flex items-start pt-0 ${
+                className={`text-sm text-black border-r relative flex items-start pt-0 self-center ${
                   isEarly ? 'time-slot-early-hours' : ''
                 } ${
                   isLate ? 'time-slot-late-hours' : ''
                 }`}
-                style={{ height: '60px', color: 'black', backgroundColor: 'white', borderRightColor: '#e5e7eb' }}
+                style={{ height: 'calc(100% - 4px)', minHeight: '60px', color: 'black', backgroundColor: 'white', borderRightColor: '#e5e7eb' }}
               >
                 {isEarlyBoundary ? (
                   <HourBoundaryToggle
@@ -276,7 +276,8 @@ export function DayView({ date, events, onEventClick, onTimeSlotClick }: DayView
                   isLate ? 'time-slot-late-hours' : ''
                 }`}
                 style={{
-                  height: '60px',
+                  height: 'calc(100% - 4px)',
+                  minHeight: '60px',
                   borderRightColor: '#e5e7eb',
                   borderTopColor: isBoundaryTop ? '#d1d5db' : '#e5e7eb'
                 }}

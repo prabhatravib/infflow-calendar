@@ -259,7 +259,7 @@ export function WeekView({ date, events, onEventClick, onTimeSlotClick }: WeekVi
           return (
             <Fragment key={hourValue}>
               {/* Time label - NO horizontal lines, just the time */}
-              <div className="bg-white border-r border-t-0 min-w-[80px] text-right pr-2 text-sm text-gray-600 font-medium relative flex items-start pt-0 h-[70px]" style={{ borderRightColor: '#e5e7eb', borderTopColor: 'transparent' }}>
+              <div className="bg-white border-r border-t-0 min-w-[80px] text-right pr-2 text-sm text-gray-600 font-medium relative flex items-start pt-0 h-[70px] self-center" style={{ borderRightColor: '#e5e7eb', borderTopColor: 'transparent' }}>
                 {isEarlyBoundary ? (
                   <HourBoundaryToggle
                     range="early"

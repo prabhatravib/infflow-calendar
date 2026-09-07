@@ -15,7 +15,7 @@ export function MonthView({ date, events, onEventClick, onDateClick, className =
   const safeEvents = Array.isArray(events) ? events : [];
   
   const monthDays = getMonthDays(date);
-  const weekdays = getWeekdayNames();
+  const weekdays = getWeekdayNames(1);
   
   const getEventsForDate = (day: Date) => {
     if (!Array.isArray(safeEvents)) {
@@ -41,6 +41,14 @@ export function MonthView({ date, events, onEventClick, onDateClick, className =
     });
   };
 
+  const daysWithEvents = monthDays.map(day => ({ day, dayEvents: getEventsForDate(day) }));
+  const weekRows = [];
+  for (let index = 0; index < daysWithEvents.length; index += 7) {
+    const busiestDay = Math.max(...daysWithEvents.slice(index, index + 7).map(({ dayEvents }) => dayEvents.length));
+    // Keep dates aligned by week, giving more room to an event and the +more line.
+    weekRows.push(`minmax(min-content, ${1 + Math.min(busiestDay, 2)}fr)`);
+  }
+
   // Get event type styling based on eventType
   const getEventTypeStyling = (event: Event) => {
     const eventType = event.eventType?.toLowerCase() || 'other';
@@ -59,7 +67,7 @@ export function MonthView({ date, events, onEventClick, onDateClick, className =
   return (
     <div className={`calendar-month-view ${className}`}>
       {/* Weekday headers and calendar grid combined to eliminate any gap */}
-      <div className="grid grid-cols-7">
+      <div className="grid grid-cols-7" style={{ gridTemplateRows: `max-content ${weekRows.join(' ')}` }}>
         {/* Weekday headers */}
         {weekdays.map((day, index) => (
           <div key={index} className="p-2 text-center text-sm font-medium text-gray-700 bg-white border-r border-gray-100 last:border-r-0 border-b border-gray-100">
@@ -68,8 +76,7 @@ export function MonthView({ date, events, onEventClick, onDateClick, className =
         ))}
         
         {/* Calendar days - directly connected to headers with no gap */}
-        {monthDays.map((day, index) => {
-          const dayEvents = getEventsForDate(day);
+        {daysWithEvents.map(({ day, dayEvents }, index) => {
           const isCurrentDay = isToday(day);
           const isCurrentMonth = day.getMonth() === date.getMonth();
           

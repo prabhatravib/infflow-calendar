@@ -36,10 +36,11 @@ export function HourBoundaryToggle({
   const { noun, span } = RANGE[range];
   const text = `${collapsed ? 'Show' : 'Hide'} ${noun}`;
 
+  // Expanded late hours put the next line after two adjacent 2px cell margins.
   const labelPosition =
     edge === 'top'
       ? { top: 0, transform: 'translateY(-50%)' }
-      : { bottom: 0, transform: 'translateY(50%)' };
+      : { bottom: collapsed ? 0 : -4, transform: 'translateY(50%)' };
 
   const pillPosition =
     edge === 'top'

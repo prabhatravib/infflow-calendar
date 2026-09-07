@@ -322,7 +322,12 @@ export const HexaWorker: React.FC<HexaWorkerProps> = ({
           <iframe
             key={sessionId}
             ref={iframeRef}
-            src={`${hexaWorkerUrl}/enhancedMode?showChat=true&sessionId=${encodeURIComponent(sessionId)}&iframe=true&curtains=true&voice=off`}
+            // `prewarm=true` is what makes the pane arrive *loaded*: Hexa
+            // builds its Realtime session at load even though voice starts off,
+            // so the reader sees the hexagon rather than a blurred progress bar
+            // and the first Voice ON is instant instead of a several-second
+            // wait. The microphone is untouched until they tap the pill.
+            src={`${hexaWorkerUrl}/enhancedMode?showChat=true&sessionId=${encodeURIComponent(sessionId)}&iframe=true&curtains=true&voice=off&prewarm=true`}
             className="calendar-voice-panel__frame"
             allow="microphone; autoplay"
             title="Voice Assistant - Hexagon and Chat"

@@ -162,8 +162,8 @@ export function getMonthDays(date: Date) {
     
     const start = startOfMonth(date);
     const end = endOfMonth(date);
-    const startWeek = startOfWeek(start, { weekStartsOn: 0 });
-    const endWeek = endOfWeek(end, { weekStartsOn: 0 });
+    const startWeek = startOfWeek(start, { weekStartsOn: 1 });
+    const endWeek = endOfWeek(end, { weekStartsOn: 1 });
     
     const result = eachDayOfInterval({ start: startWeek, end: endWeek });
     
