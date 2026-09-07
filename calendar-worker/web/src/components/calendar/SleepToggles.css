@@ -214,3 +214,84 @@
   visibility: visible !important;
   opacity: 1 !important;
 }
+
+/* ---------------------------------------------------------------------------
+   Hour-boundary controls (6 AM / 10 PM)
+
+   Narrowly scoped on purpose: the .cursor-pointer rules above also match event
+   chips and hour cells, so the controls carry their own classes instead. Both
+   pieces are absolutely positioned inside the hour's gutter cell, which adds no
+   grid track and no vertical space, and the gutter creates no stacking context
+   so z-index 11 keeps them above the day cells (pinned to 10 further up).
+   --------------------------------------------------------------------------- */
+
+/* Boundary time, sitting in the gutter exactly like every other hour label */
+.hour-boundary-time {
+  position: absolute;
+  right: 8px;
+  padding: 0 4px;
+  background: white;
+  line-height: 1;
+  white-space: nowrap;
+  z-index: 11;
+}
+
+/* The control itself, riding the boundary line just inside the day columns */
+.hour-boundary-pill {
+  position: absolute;
+  left: calc(100% + 6px);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 10px 0 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  background: white;
+  color: #4b5563;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease,
+    box-shadow 0.15s ease;
+  z-index: 11;
+}
+
+.hour-boundary-pill:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
+  color: #111827;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.hour-boundary-pill:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+/*
+ * Room for a pill that sits outside the hour grid: below the last line always,
+ * and above the first line in day view, which has no header row to sit in.
+ * Padding is inside the overflow clip, so the pill stays on the card.
+ */
+.calendar-week-view,
+.calendar-day-view {
+  padding-bottom: 26px;
+}
+
+.calendar-day-view--leading-pill {
+  padding-top: 26px;
+}
+
+/* Decorative rule across the day columns marking the boundary */
+.hour-boundary-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: #d1d5db;
+  pointer-events: none;
+}

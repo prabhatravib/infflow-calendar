@@ -5,7 +5,7 @@ import { MinuteIndicator } from './MinuteIndicator';
 import { CurrentTimeLine } from './CurrentTimeLine';
 import { isEarlyHour, isLateHour } from '../../lib/utils';
 import { useSleepToggles } from './useSleepToggles';
-import { SleepToggleBars } from './SleepToggleBars';
+import { HourBoundaryToggle } from './HourBoundaryToggle';
 import { useWeatherEvents } from '../../lib/hooks/useWeatherEvents';
 import { useMinuteOfDay } from '../../lib/hooks/useMinuteOfDay';
 import type { Event } from '../../lib/api';
@@ -31,7 +31,6 @@ export function DayView({ date, events, onEventClick, onTimeSlotClick }: DayView
     earlyHoursCollapsed,
     lateHoursCollapsed,
     filterHoursByToggles,
-    calculateTogglePositions,
     handleEarlyHoursToggle,
     handleLateHoursToggle
   } = useSleepToggles();
@@ -157,13 +156,12 @@ export function DayView({ date, events, onEventClick, onTimeSlotClick }: DayView
     }
   };
 
-  // Calculate toggle positions using shared logic
-  const togglePositions = useMemo(() => {
-    return calculateTogglePositions(hours);
-  }, [hours, calculateTogglePositions]);
-
   return (
-    <div className="calendar-day-view relative">
+    <div
+      className={`calendar-day-view relative${
+        earlyHoursCollapsed ? ' calendar-day-view--leading-pill' : ''
+      }`}
+    >
       {/* All-day events section (including weather) */}
       {(() => {
         const allDayEvents = allEvents.filter(event => {
@@ -207,41 +205,33 @@ export function DayView({ date, events, onEventClick, onTimeSlotClick }: DayView
         className="grid bg-white"
         style={{ gridTemplateColumns: '80px 1fr', gap: '0px' }}
       >
-        
-        {/* Early Hours Toggle - rendered at the very top when collapsed */}
-        {(() => {
-          const { renderEarlyToggleTop } = SleepToggleBars({
-            earlyHoursCollapsed,
-            lateHoursCollapsed,
-            togglePositions,
-            onEarlyHoursToggle: handleEarlyHoursToggle,
-            onLateHoursToggle: handleLateHoursToggle,
-            isWeekView: false
-          });
-          return renderEarlyToggleTop();
-        })()}
-        
         {/* Render each hour as a single row spanning both columns */}
-        {Array.isArray(hours) && hours.map((hour, hourIndex) => {
+        {Array.isArray(hours) && hours.map((hour) => {
           if (!hour || !(hour instanceof Date) || isNaN(hour.getTime())) {
             console.warn('Invalid hour in render:', hour);
             return null;
           }
-          
+
           const hourValue = hour.getHours();
           const isEarly = isEarlyHour(hourValue);
           const isLate = isLateHour(hourValue);
-          
+
           // Skip rendering if hours are collapsed (this should be handled by filterHoursByToggles)
           // But keep this as a safety check
           if ((earlyHoursCollapsed && isEarly) || (lateHoursCollapsed && isLate)) {
             return null;
           }
-          
+
           const hourEvents = getEventsForHour(hourValue);
-          
+
+          // The 6 AM boundary is this row's top edge; the 10 PM boundary is the
+          // bottom edge of the 9 PM row, which stays visible in both states.
+          const isEarlyBoundary = hourValue === 6;
+          const isLateBoundary = hourValue === 21;
+          const isBoundaryTop = isEarlyBoundary || hourValue === 22;
+
           return (
-            <Fragment key={hourIndex}>
+            <Fragment key={hourValue}>
               {/* Timeline column - hour label - NO horizontal lines, just the time */}
               <div
                 className={`text-sm text-black border-r relative flex items-start pt-0 ${
@@ -251,9 +241,28 @@ export function DayView({ date, events, onEventClick, onTimeSlotClick }: DayView
                 }`}
                 style={{ height: '60px', color: 'black', backgroundColor: 'white', borderRightColor: '#e5e7eb' }}
               >
-                <div className="absolute top-0 right-2 transform -translate-y-1/2 bg-white px-1">
-                  {formatTime(hour, 'h:mm a')}
-                </div>
+                {isEarlyBoundary ? (
+                  <HourBoundaryToggle
+                    range="early"
+                    label={formatTime(hour, 'h:mm a')}
+                    collapsed={earlyHoursCollapsed}
+                    onToggle={handleEarlyHoursToggle}
+                    edge="top"
+                  />
+                ) : hourValue === 22 ? null : (
+                  <div className="absolute top-0 right-2 transform -translate-y-1/2 bg-white px-1">
+                    {formatTime(hour, 'h:mm a')}
+                  </div>
+                )}
+                {isLateBoundary && (
+                  <HourBoundaryToggle
+                    range="late"
+                    label={formatTime(timelineHours[22], 'h:mm a')}
+                    collapsed={lateHoursCollapsed}
+                    onToggle={handleLateHoursToggle}
+                    edge="bottom"
+                  />
+                )}
                 {showCurrentTime && hourValue === currentHour && (
                   <MinuteIndicator minute={currentMinute} />
                 )}
@@ -266,8 +275,15 @@ export function DayView({ date, events, onEventClick, onTimeSlotClick }: DayView
                 } ${
                   isLate ? 'time-slot-late-hours' : ''
                 }`}
-                style={{ height: '60px', borderRightColor: '#e5e7eb', borderTopColor: '#e5e7eb' }}
+                style={{
+                  height: '60px',
+                  borderRightColor: '#e5e7eb',
+                  borderTopColor: isBoundaryTop ? '#d1d5db' : '#e5e7eb'
+                }}
               >
+                {isLateBoundary && lateHoursCollapsed && (
+                  <div className="hour-boundary-line" style={{ bottom: 0 }}></div>
+                )}
                 {showCurrentTime && hourValue === currentHour && (
                   <CurrentTimeLine minute={currentMinute} />
                 )}
@@ -298,34 +314,6 @@ export function DayView({ date, events, onEventClick, onTimeSlotClick }: DayView
                 ))}
                 </div>
               </div>
-              
-              {/* Insert toggle bars at specific time positions */}
-              
-              {/* Early Hours Toggle - only show when expanded (collapsed is handled at top) */}
-              {(() => {
-                const { renderEarlyToggle } = SleepToggleBars({
-                  earlyHoursCollapsed,
-                  lateHoursCollapsed,
-                  togglePositions,
-                  onEarlyHoursToggle: handleEarlyHoursToggle,
-                  onLateHoursToggle: handleLateHoursToggle,
-                  isWeekView: false
-                });
-                return renderEarlyToggle(hourIndex);
-              })()}
-              
-              {/* Late Hours Toggle */}
-              {(() => {
-                const { renderLateToggle } = SleepToggleBars({
-                  earlyHoursCollapsed,
-                  lateHoursCollapsed,
-                  togglePositions,
-                  onEarlyHoursToggle: handleEarlyHoursToggle,
-                  onLateHoursToggle: handleLateHoursToggle,
-                  isWeekView: false
-                });
-                return renderLateToggle(hourIndex);
-              })()}
             </Fragment>
           );
         })}

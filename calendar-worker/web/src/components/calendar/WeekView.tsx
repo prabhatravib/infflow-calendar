@@ -5,10 +5,19 @@ import { MinuteIndicator } from './MinuteIndicator';
 import { CurrentTimeLine } from './CurrentTimeLine';
 import { isLateHour } from '../../lib/utils';
 import { useSleepToggles } from './useSleepToggles';
-import { SleepToggleBars } from './SleepToggleBars';
+import { HourBoundaryToggle } from './HourBoundaryToggle';
 import { useWeatherEvents } from '../../lib/hooks/useWeatherEvents';
 import { useMinuteOfDay } from '../../lib/hooks/useMinuteOfDay';
 import type { Event } from '../../lib/api';
+
+const HOUR_LABEL_FORMAT: Intl.DateTimeFormatOptions = {
+  hour: 'numeric',
+  minute: '2-digit',
+  hour12: true
+};
+
+// 10 PM stays labelled even when its hour cell is hidden
+const LATE_BOUNDARY = new Date(1970, 0, 1, 22);
 
 interface WeekViewProps {
   date: Date;
@@ -42,7 +51,6 @@ export function WeekView({ date, events, onEventClick, onTimeSlotClick }: WeekVi
     earlyHoursCollapsed,
     lateHoursCollapsed,
     filterHoursByToggles,
-    calculateTogglePositions,
     handleEarlyHoursToggle,
     handleLateHoursToggle
   } = useSleepToggles();
@@ -97,11 +105,6 @@ export function WeekView({ date, events, onEventClick, onTimeSlotClick }: WeekVi
       return [];
     }
   }, [filterHoursByToggles]);
-
-  // Calculate toggle positions using shared logic
-  const togglePositions = useMemo(() => {
-    return calculateTogglePositions(hours);
-  }, [hours, calculateTogglePositions]);
 
   const getEventsForDateAndHour = (date: Date, hour: number) => {
     // Ensure allEvents is always an array before filtering
@@ -233,20 +236,7 @@ export function WeekView({ date, events, onEventClick, onTimeSlotClick }: WeekVi
         })}
         
         {/* Time labels and day columns */}
-        
-        {/* Early Hours Toggle - rendered at the very top when collapsed */}
-        {(() => {
-          const { renderEarlyToggleTop } = SleepToggleBars({
-            earlyHoursCollapsed,
-            lateHoursCollapsed,
-            togglePositions,
-            onEarlyHoursToggle: handleEarlyHoursToggle,
-            onLateHoursToggle: handleLateHoursToggle,
-            isWeekView: true
-          });
-          return renderEarlyToggleTop();
-        })()}
-        
+
         {Array.isArray(hours) && hours.map((hour, hourIndex) => {
           if (!hour || !(hour instanceof Date) || isNaN(hour.getTime())) {
             console.warn('Invalid hour in render:', hour);
@@ -255,33 +245,48 @@ export function WeekView({ date, events, onEventClick, onTimeSlotClick }: WeekVi
           
           const hourValue = hour.getHours();
           const isLate = isLateHour(hourValue);
-          
+
           // Skip rendering if late hours are collapsed
           if (lateHoursCollapsed && isLate) {
             return null;
           }
-          
+
+          // The 6 AM boundary is this cell's top edge; the 10 PM boundary is the
+          // bottom edge of the 9 PM cell, which stays visible in both states.
+          const isEarlyBoundary = hourValue === 6;
+          const isLateBoundary = hourValue === 21;
+
           return (
-            <Fragment key={hourIndex}>
+            <Fragment key={hourValue}>
               {/* Time label - NO horizontal lines, just the time */}
               <div className="bg-white border-r border-t-0 min-w-[80px] text-right pr-2 text-sm text-gray-600 font-medium relative flex items-start pt-0 h-[70px]" style={{ borderRightColor: '#e5e7eb', borderTopColor: 'transparent' }}>
-                <div className="absolute top-0 right-2 transform -translate-y-1/2 bg-white px-1">
-                  {hour.toLocaleTimeString('en-US', { 
-                    hour: 'numeric', 
-                    minute: '2-digit',
-                    hour12: true 
-                  })}
-                </div>
+                {isEarlyBoundary ? (
+                  <HourBoundaryToggle
+                    range="early"
+                    label={hour.toLocaleTimeString('en-US', HOUR_LABEL_FORMAT)}
+                    collapsed={earlyHoursCollapsed}
+                    onToggle={handleEarlyHoursToggle}
+                    edge="top"
+                  />
+                ) : hourValue === 22 ? null : (
+                  <div className="absolute top-0 right-2 transform -translate-y-1/2 bg-white px-1">
+                    {hour.toLocaleTimeString('en-US', HOUR_LABEL_FORMAT)}
+                  </div>
+                )}
+                {isLateBoundary && (
+                  <HourBoundaryToggle
+                    range="late"
+                    label={LATE_BOUNDARY.toLocaleTimeString('en-US', HOUR_LABEL_FORMAT)}
+                    collapsed={lateHoursCollapsed}
+                    onToggle={handleLateHoursToggle}
+                    edge="bottom"
+                  />
+                )}
                 {weekHasToday && hourValue === currentHour && (
                   <MinuteIndicator minute={currentMinute} />
                 )}
-                {lateHoursCollapsed && hourIndex === togglePositions.lateToggle && (
-                  <div className="absolute top-full right-2 z-10 transform -translate-y-1/2 bg-white px-1">
-                    10:00 PM
-                  </div>
-                )}
               </div>
-              
+
               {/* Day columns with horizontal lines */}
               {Array.isArray(weekDays) && weekDays.map((day, dayIndex) => {
                 if (!day || !(day instanceof Date) || isNaN(day.getTime())) {
@@ -303,7 +308,15 @@ export function WeekView({ date, events, onEventClick, onTimeSlotClick }: WeekVi
                     style={{ borderRightColor: '#e5e7eb' }}
                   >
                     {/* Horizontal line for the hour mark - only in day columns */}
-                    {hourIndex > 0 && <div className="absolute top-0 left-0 right-0 h-px bg-gray-200"></div>}
+                    {hourIndex > 0 && !isEarlyBoundary && hourValue !== 22 && (
+                      <div className="absolute top-0 left-0 right-0 h-px bg-gray-200"></div>
+                    )}
+                    {(isEarlyBoundary || hourValue === 22) && (
+                      <div className="hour-boundary-line" style={{ top: 0 }}></div>
+                    )}
+                    {isLateBoundary && lateHoursCollapsed && (
+                      <div className="hour-boundary-line" style={{ bottom: 0 }}></div>
+                    )}
                     {isCurrentDay && hourValue === currentHour && (
                       <CurrentTimeLine minute={currentMinute} />
                     )}
@@ -348,39 +361,9 @@ export function WeekView({ date, events, onEventClick, onTimeSlotClick }: WeekVi
                   </div>
                 );
               })}
-              
-              {/* Insert toggle bars at specific time positions */}
-              
-              {/* Early Hours Toggle - only show when expanded (collapsed is handled at top) */}
-              {(() => {
-                const { renderEarlyToggle } = SleepToggleBars({
-                  earlyHoursCollapsed,
-                  lateHoursCollapsed,
-                  togglePositions,
-                  onEarlyHoursToggle: handleEarlyHoursToggle,
-                  onLateHoursToggle: handleLateHoursToggle,
-                  isWeekView: true
-                });
-                return renderEarlyToggle(hourIndex);
-              })()}
-              
-              {/* Late Hours Toggle */}
-              {(() => {
-                const { renderLateToggle } = SleepToggleBars({
-                  earlyHoursCollapsed,
-                  lateHoursCollapsed,
-                  togglePositions,
-                  onEarlyHoursToggle: handleEarlyHoursToggle,
-                  onLateHoursToggle: handleLateHoursToggle,
-                  isWeekView: true
-                });
-                return renderLateToggle(hourIndex);
-              })()}
             </Fragment>
           );
         })}
-        
-        {/* Remove the standalone toggle bars since they're now integrated into the hour loop */}
       </div>
     </div>
   );
