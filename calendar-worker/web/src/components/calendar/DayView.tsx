@@ -1,12 +1,13 @@
 
 import { useMemo, Fragment } from 'react';
-import { isSameDay, formatTime } from '../../lib/date';
+import { isSameDay, isToday, formatTime } from '../../lib/date';
 import { MinuteIndicator } from './MinuteIndicator';
 import { CurrentTimeLine } from './CurrentTimeLine';
 import { isEarlyHour, isLateHour } from '../../lib/utils';
 import { useSleepToggles } from './useSleepToggles';
 import { SleepToggleBars } from './SleepToggleBars';
 import { useWeatherEvents } from '../../lib/hooks/useWeatherEvents';
+import { useMinuteOfDay } from '../../lib/hooks/useMinuteOfDay';
 import type { Event } from '../../lib/api';
 
 interface DayViewProps {
@@ -17,6 +18,14 @@ interface DayViewProps {
 }
 
 export function DayView({ date, events, onEventClick, onTimeSlotClick }: DayViewProps) {
+  // Re-renders once a minute, which also rolls the indicators over at midnight
+  const minuteOfDay = useMinuteOfDay();
+  const currentHour = Math.floor(minuteOfDay / 60);
+  const currentMinute = minuteOfDay % 60;
+
+  // Only show the live time indicators when the displayed day is today
+  const showCurrentTime = date instanceof Date && !isNaN(date.getTime()) && isToday(date);
+
   // Use shared sleep toggle logic
   const {
     earlyHoursCollapsed,
@@ -155,12 +164,6 @@ export function DayView({ date, events, onEventClick, onTimeSlotClick }: DayView
 
   return (
     <div className="calendar-day-view relative">
-      {/* Minute Indicator - positioned absolutely over the calendar */}
-      <MinuteIndicator />
-      
-      {/* Current Time Line - horizontal line across the calendar at current time */}
-      <CurrentTimeLine isWeekView={false} />
-      
       {/* All-day events section (including weather) */}
       {(() => {
         const allDayEvents = allEvents.filter(event => {
@@ -251,6 +254,9 @@ export function DayView({ date, events, onEventClick, onTimeSlotClick }: DayView
                 <div className="absolute top-0 right-2 transform -translate-y-1/2 bg-white px-1">
                   {formatTime(hour, 'h:mm a')}
                 </div>
+                {showCurrentTime && hourValue === currentHour && (
+                  <MinuteIndicator minute={currentMinute} />
+                )}
               </div>
 
               {/* Events column - event content with horizontal lines */}
@@ -262,6 +268,9 @@ export function DayView({ date, events, onEventClick, onTimeSlotClick }: DayView
                 }`}
                 style={{ height: '60px', borderRightColor: '#e5e7eb', borderTopColor: '#e5e7eb' }}
               >
+                {showCurrentTime && hourValue === currentHour && (
+                  <CurrentTimeLine minute={currentMinute} />
+                )}
                 <div
                   className="relative h-full w-full"
                   onClick={(e) => {

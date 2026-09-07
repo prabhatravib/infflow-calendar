@@ -8,6 +8,7 @@
     "build": "cd calendar-worker && npm run build",
     "deploy": "cd calendar-worker && npm run deploy",
     "deploy:ps1": "cd calendar-worker && .\\deploy.ps1",
+    "lint": "npm --prefix calendar-worker/web run lint",
     "install": "cd calendar-worker && npm install && cd web && npm install"
   },
   "keywords": [

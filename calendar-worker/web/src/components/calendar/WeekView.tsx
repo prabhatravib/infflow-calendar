@@ -7,6 +7,7 @@ import { isLateHour } from '../../lib/utils';
 import { useSleepToggles } from './useSleepToggles';
 import { SleepToggleBars } from './SleepToggleBars';
 import { useWeatherEvents } from '../../lib/hooks/useWeatherEvents';
+import { useMinuteOfDay } from '../../lib/hooks/useMinuteOfDay';
 import type { Event } from '../../lib/api';
 
 interface WeekViewProps {
@@ -25,6 +26,17 @@ export function WeekView({ date, events, onEventClick, onTimeSlotClick }: WeekVi
     return getWeekDays(safeDate, 1) || [];
   }, [safeDate]);
   
+  // Re-renders once a minute, which also rolls the indicators over at midnight
+  const minuteOfDay = useMinuteOfDay();
+  const currentHour = Math.floor(minuteOfDay / 60);
+  const currentMinute = minuteOfDay % 60;
+
+  // Only show the live time indicators when today falls inside the displayed week.
+  // Cheap enough to redo each render, which keeps it honest across midnight.
+  const weekHasToday = weekDays.some(
+    day => day instanceof Date && !isNaN(day.getTime()) && isToday(day)
+  );
+
   // Use shared sleep toggle logic
   const {
     earlyHoursCollapsed,
@@ -157,12 +169,6 @@ export function WeekView({ date, events, onEventClick, onTimeSlotClick }: WeekVi
 
   return (
     <div className="calendar-week-view relative">
-      {/* Minute Indicator - positioned absolutely over the calendar */}
-      <MinuteIndicator />
-      
-      {/* Current Time Line - horizontal line across the calendar at current time */}
-      <CurrentTimeLine isWeekView={true} />
-      
       {/* Single grid for headers and time slots */}
       <div className="grid grid-cols-8 relative">
         {/* Empty cell for time column */}
@@ -177,8 +183,13 @@ export function WeekView({ date, events, onEventClick, onTimeSlotClick }: WeekVi
               p-2 text-center text-sm font-medium bg-white border-r border-gray-100 last:border-r-0 border-b border-gray-100
               ${isCurrentDay ? 'bg-blue-50 text-blue-800' : 'text-gray-700'}
             `}>
-              <div className="font-bold">{formatDate(day, 'EEE')}</div>
-              <div className="text-xs mb-2">{formatDate(day, 'MMM dd')}</div>
+              <div
+                className={`inline-block rounded-md px-3 py-1 mb-2 ${isCurrentDay ? 'bg-blue-50 ring-1 ring-inset ring-blue-100' : ''}`}
+                aria-current={isCurrentDay ? 'date' : undefined}
+              >
+                <div className="font-bold">{formatDate(day, 'EEE')}</div>
+                <div className="text-xs">{formatDate(day, 'MMM dd')}</div>
+              </div>
               
               {/* All-day events (including weather) */}
               {(() => {
@@ -261,6 +272,14 @@ export function WeekView({ date, events, onEventClick, onTimeSlotClick }: WeekVi
                     hour12: true 
                   })}
                 </div>
+                {weekHasToday && hourValue === currentHour && (
+                  <MinuteIndicator minute={currentMinute} />
+                )}
+                {lateHoursCollapsed && hourIndex === togglePositions.lateToggle && (
+                  <div className="absolute top-full right-2 z-10 transform -translate-y-1/2 bg-white px-1">
+                    10:00 PM
+                  </div>
+                )}
               </div>
               
               {/* Day columns with horizontal lines */}
@@ -285,6 +304,9 @@ export function WeekView({ date, events, onEventClick, onTimeSlotClick }: WeekVi
                   >
                     {/* Horizontal line for the hour mark - only in day columns */}
                     {hourIndex > 0 && <div className="absolute top-0 left-0 right-0 h-px bg-gray-200"></div>}
+                    {isCurrentDay && hourValue === currentHour && (
+                      <CurrentTimeLine minute={currentMinute} />
+                    )}
                     <div
                       className="relative h-full w-full"
                       onClick={(e) => {
