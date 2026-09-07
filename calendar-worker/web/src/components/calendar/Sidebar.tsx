@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import { WeatherWidget } from './WeatherWidget';
 
 interface SidebarProps {
   onFilterChange: (filters: EventFilters) => void;
   className?: string;
+  children?: ReactNode;
 }
 
 export interface EventFilters {
@@ -12,7 +14,7 @@ export interface EventFilters {
   showOther: boolean;
 }
 
-export function Sidebar({ onFilterChange, className = '' }: SidebarProps) {
+export function Sidebar({ onFilterChange, className = '', children }: SidebarProps) {
   const [filters, setFilters] = useState<EventFilters>({
     showFun: true,
     showWork: true,
@@ -86,6 +88,7 @@ export function Sidebar({ onFilterChange, className = '' }: SidebarProps) {
       <div className="weather-section">
         <WeatherWidget />
       </div>
+      {children}
     </div>
   );
 }

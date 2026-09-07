@@ -2,6 +2,20 @@ import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInte
 
 export type View = 'month' | 'week' | 'day' | 'list';
 
+export function getCalendarDateRange(date: Date, view: View) {
+  // Use the same days as the rendered grids, including adjacent month cells.
+  const days = view === 'day'
+    ? [date]
+    : view === 'month'
+      ? getMonthDays(date)
+      : getWeekDays(date, 1);
+  const startDate = new Date(days[0]);
+  const endDate = new Date(days[days.length - 1]);
+  startDate.setHours(0, 0, 0, 0);
+  endDate.setHours(23, 59, 59, 999);
+  return { startDate, endDate };
+}
+
 export function weekdayDates(weekStart = 0, startDate: Date, length = 6) {
   try {
     // Validate input parameters

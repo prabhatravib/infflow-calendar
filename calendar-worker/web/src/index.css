@@ -294,6 +294,84 @@ html, body {
   }
 }
 
+/* Keep the embedded voice panel inside the existing sidebar at every width. */
+.calendar-voice-panel {
+  container-type: inline-size;
+  width: 100%;
+  min-width: 0;
+  margin-top: 24px;
+  overflow: clip;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}
+
+.calendar-voice-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #f3f4f6;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.calendar-voice-panel__reset {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #3b82f6;
+  color: white;
+  cursor: pointer;
+}
+
+.calendar-voice-panel__reset:hover {
+  background: #2563eb;
+}
+
+.calendar-voice-panel__reset:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.calendar-voice-panel__reset:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.calendar-voice-panel__body {
+  position: relative;
+  height: clamp(32rem, 65vh, 44rem);
+  /* The scaled iframe's layout box is taller than its visible box. Unlike
+     hidden, clip prevents transcript scrollIntoView from scrolling this host
+     container and moving the visual and its Show/Hide control out of view. */
+  overflow: clip;
+}
+
+/* Match the reference panel's scale so Hexa has room for its own controls. */
+.calendar-voice-panel__frame {
+  display: block;
+  width: calc(100% / 0.7);
+  height: calc(100% / 0.7);
+  border: 0;
+  transform: scale(0.7);
+  transform-origin: top left;
+}
+
+@container (min-width: 360px) {
+  .calendar-voice-panel__frame {
+    width: 100%;
+    height: 100%;
+    transform: none;
+  }
+}
+
 /* Event type filter styles */
 .event-filters input[type="checkbox"]:checked {
   background-color: currentColor;

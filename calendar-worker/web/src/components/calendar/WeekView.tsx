@@ -185,7 +185,10 @@ export function WeekView({ date, events, onEventClick, onTimeSlotClick }: WeekVi
                 const allDayEvents = allEvents.filter(event => {
                   if (!event || !event.start) return false;
                   try {
-                    const eventDate = new Date(event.start);
+                    // Forecast dates are local calendar days, not UTC instants.
+                    const eventDate = new Date(event.type === 'weather-warning' && event.start.length === 10
+                      ? `${event.start}T00:00:00`
+                      : event.start);
                     return isSameDay(eventDate, day) && event.all_day;
                   } catch (error) {
                     return false;

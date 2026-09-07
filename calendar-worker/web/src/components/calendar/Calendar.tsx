@@ -1,15 +1,17 @@
-import { useState, useEffect } from 'react';
 import { WeekView } from './WeekView';
 import { MonthView } from './MonthView';
 import { DayView } from './DayView';
 import { ListView } from './ListView';
 import type { Event } from '../../lib/api';
-import { getNavigationDates, type View } from '../../lib/date';
+import { getCalendarDateRange, getNavigationDates, type View } from '../../lib/date';
 
 interface CalendarProps {
   events: Event[];
   currentView: View;
   currentDate: Date;
+  navigationView?: View;
+  navigationDate?: Date;
+  isLoading?: boolean;
   onEventClick?: (event: Event) => void;
   onDateClick?: (date: Date) => void;
   onTimeSlotClick?: (date: Date, hour: number) => void;
@@ -22,6 +24,9 @@ export function Calendar({
   events, 
   currentView,
   currentDate,
+  navigationView = currentView,
+  navigationDate = currentDate,
+  isLoading = false,
   onEventClick, 
   onDateClick, 
   onTimeSlotClick, 
@@ -29,16 +34,9 @@ export function Calendar({
   onDateChange,
   className = '' 
 }: CalendarProps) {
-  // Remove internal state - use props from parent instead
-  const [allEvents, setAllEvents] = useState<Event[]>([]);
-
-  // Ensure events is always an array
-  const safeEvents = Array.isArray(events) ? events : [];
-
-  // Set all events directly from props
-  useEffect(() => {
-    setAllEvents(safeEvents);
-  }, [safeEvents]);
+  // Render events with their period, without an extra empty/stale render.
+  const allEvents = Array.isArray(events) ? events : [];
+  const { startDate, endDate } = getCalendarDateRange(currentDate, currentView);
 
   const handleViewChange = (view: View) => {
     // Don't set internal state - let parent handle it
@@ -48,7 +46,8 @@ export function Calendar({
   };
 
   const handleDateChange = (direction: 'prev' | 'next') => {
-    const { prev, next } = getNavigationDates(currentDate, currentView);
+    // Repeated clicks advance from the latest request, even before it loads.
+    const { prev, next } = getNavigationDates(navigationDate, navigationView);
     const newDate = direction === 'prev' ? prev : next;
     
     if (onDateChange) {
@@ -164,6 +163,7 @@ export function Calendar({
           <div className="flex items-center space-x-4">
             <button
               onClick={() => handleDateChange('prev')}
+              aria-label="Previous period"
               className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -171,15 +171,21 @@ export function Calendar({
               </svg>
             </button>
             
-            <h2 className="text-lg font-semibold text-gray-900">
-              {currentView === 'month' && currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-              {currentView === 'week' && `${currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${new Date(currentDate.getTime() + 6 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
-              {currentView === 'day' && currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-              {currentView === 'list' && 'All Events'}
-            </h2>
+            <div className="relative min-w-[11rem] text-center">
+              <h2 className="text-lg font-semibold text-gray-900">
+                {currentView === 'month' && currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                {currentView === 'week' && `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+                {currentView === 'day' && currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                {currentView === 'list' && 'All Events'}
+              </h2>
+              <span role="status" className="absolute inset-x-0 top-full text-xs text-blue-600">
+                {isLoading ? 'Loading events...' : ''}
+              </span>
+            </div>
             
             <button
               onClick={() => handleDateChange('next')}
+              aria-label="Next period"
               className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -203,7 +209,7 @@ export function Calendar({
       {/* Main Content */}
       <div className="flex flex-1 overflow-hidden">
         {/* Calendar view */}
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto" aria-busy={isLoading}>
           {renderView()}
         </div>
       </div>

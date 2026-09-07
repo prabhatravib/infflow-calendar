@@ -2,6 +2,9 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
+import { installConsoleLogCapture } from './utils/console-log-capture';
+
+installConsoleLogCapture();
 
 // Ensure the root element exists and has proper content
 const rootElement = document.getElementById('root');

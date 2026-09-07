@@ -3,12 +3,13 @@ import { Calendar } from './components/calendar/Calendar';
 import { EventModal } from './components/calendar/EventModal';
 import { Sidebar, EventFilters } from './components/calendar/Sidebar';
 import { HexaWorker } from './components/HexaWorker';
+import { DownloadLogsButton } from './components/DownloadLogsButton';
 import { LocationProvider, useLocation } from './lib/contexts/LocationContext';
 import { useEventFiltering } from './lib/hooks/useEventFiltering';
 import { fetchEvents, createEvent, updateEvent, deleteEvent } from './lib/api';
 import { weatherService } from './lib/services/weatherService';
 import type { Event } from './lib/api';
-import type { View } from './lib/date';
+import { getCalendarDateRange, type View } from './lib/date';
 
 const DEMO_CALENDAR_ID = '3c414e29-a3c3-4350-a334-5585cb22737a';
 
@@ -22,6 +23,7 @@ function AppContent() {
   const [selectedMinute, setSelectedMinute] = useState<number | undefined>();
   const [currentView, setCurrentView] = useState<View>('week');
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [displayedPeriod, setDisplayedPeriod] = useState<{ date: Date; view: View } | null>(null);
   const [weatherData, setWeatherData] = useState<any>(null);
 
   // Get location from context
@@ -51,212 +53,42 @@ function AppContent() {
 
 
   useEffect(() => {
-    // Initialize with default values and load events
-    const initialView: View = 'week';
-    const initialDate = new Date();
-    setCurrentView(initialView);
-    setCurrentDate(initialDate);
-    
-    // Load events with initial parameters
+    let cancelled = false;
+
+    const loadEvents = async () => {
+      setIsLoading(true);
+      try {
+        const { startDate, endDate } = getCalendarDateRange(currentDate, currentView);
+        const fetchedEvents = await fetchEvents(
+          DEMO_CALENDAR_ID,
+          startDate.toISOString(),
+          endDate.toISOString()
+        );
+
+        if (!cancelled) {
+          setEvents(fetchedEvents);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Error loading events:', error);
+          setEvents([]);
+        }
+      } finally {
+        if (!cancelled) {
+          // Commit the visible period with its events, keeping the existing grid
+          // mounted while navigation requests are in flight.
+          setDisplayedPeriod({ date: currentDate, view: currentView });
+          setIsLoading(false);
+        }
+      }
+    };
+
     loadEvents();
-  }, []);
-
-  // Handle view/date changes after initial load
-  useEffect(() => {
-    // Skip the first render to avoid duplicate loading
-    if (currentView && currentDate) {
-      // Only reload if this is not the initial load
-      const isInitialLoad = currentView === 'week' && 
-        currentDate.toDateString() === new Date().toDateString();
-      
-      if (!isInitialLoad) {
-        loadEvents();
-      }
-    }
+    // A response for a previous date/view must not replace the current events.
+    return () => {
+      cancelled = true;
+    };
   }, [currentView, currentDate]);
-
-  // Load events based on current view and date
-  const loadEvents = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      
-      // Use currentDate instead of always using current time
-      const baseDate = currentDate || new Date();
-      let startDate: Date;
-      let endDate: Date;
-      
-      // Calculate date range based on current view
-      switch (currentView) {
-        case 'week':
-          // Get the week containing the current date
-          const weekStart = new Date(baseDate);
-          weekStart.setDate(baseDate.getDate() - baseDate.getDay()); // Start of week (Sunday)
-          const weekEnd = new Date(weekStart);
-          weekEnd.setDate(weekStart.getDate() + 6); // End of week (Saturday)
-          
-          startDate = weekStart;
-          endDate = weekEnd;
-          break;
-          
-        case 'month':
-          // Get the month containing the specified date
-          startDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1);
-          endDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + 1, 0);
-          break;
-          
-        case 'day':
-          // Get the day with some buffer to handle timezone issues
-          startDate = new Date(baseDate);
-          startDate.setHours(0, 0, 0, 0); // Start of day
-          endDate = new Date(baseDate);
-          endDate.setHours(23, 59, 59, 999); // End of day
-          break;
-          
-        default:
-          // Default to current week
-          startDate = new Date(baseDate);
-          endDate = new Date(baseDate.getTime() + 7 * 24 * 60 * 60 * 1000);
-      }
-      
-      const fetchedEvents = await fetchEvents(
-        DEMO_CALENDAR_ID,
-        startDate.toISOString(),
-        endDate.toISOString()
-      );
-      
-      setEvents(fetchedEvents);
-      
-    } catch (error) {
-      console.error('Error loading events:', error);
-      setEvents([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [currentView, currentDate]);
-
-
-
-  // Function to load events for a specific date (avoids state update timing issues)
-  const loadEventsForDate = useCallback(async (date: Date) => {
-    try {
-      setIsLoading(true);
-      
-      let startDate: Date;
-      let endDate: Date;
-      
-      // Calculate date range based on current view
-      switch (currentView) {
-        case 'week':
-          // Get the week containing the specified date
-          const weekStart = new Date(date);
-          weekStart.setDate(date.getDate() - date.getDay()); // Start of week (Sunday)
-          const weekEnd = new Date(weekStart);
-          weekEnd.setDate(weekStart.getDate() + 6); // End of week (Saturday)
-          
-          startDate = weekStart;
-          endDate = weekEnd;
-          break;
-          
-        case 'month':
-          // Get the month containing the specified date
-          startDate = new Date(date.getFullYear(), date.getMonth(), 1);
-          endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-          break;
-          
-        case 'day':
-          // Get the specified day
-          startDate = new Date(date);
-          endDate = new Date(date);
-          break;
-          
-        default:
-          // Default to week view
-          const defaultWeekStart = new Date(date);
-          defaultWeekStart.setDate(date.getDate() - date.getDay());
-          const defaultWeekEnd = new Date(defaultWeekStart);
-          defaultWeekEnd.setDate(defaultWeekStart.getDate() + 6);
-          
-          startDate = defaultWeekStart;
-          endDate = defaultWeekEnd;
-      }
-      
-      const fetchedEvents = await fetchEvents(
-        DEMO_CALENDAR_ID,
-        startDate.toISOString(),
-        endDate.toISOString()
-      );
-      
-      setEvents(fetchedEvents);
-      
-    } catch (error) {
-      console.error('Error loading events for date:', error);
-      setEvents([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [currentView]);
-
-  // Function to load events for a specific view and date (avoids state update timing issues)
-  const loadEventsForView = useCallback(async (view: View, date: Date) => {
-    try {
-      setIsLoading(true);
-      
-      let startDate: Date;
-      let endDate: Date;
-      
-      // Calculate date range based on the specified view
-      switch (view) {
-        case 'week':
-          // Get the week containing the specified date
-          const weekStart = new Date(date);
-          weekStart.setDate(date.getDate() - date.getDay()); // Start of week (Sunday)
-          const weekEnd = new Date(weekStart);
-          weekEnd.setDate(weekStart.getDate() + 6); // End of week (Saturday)
-          
-          startDate = weekStart;
-          endDate = weekEnd;
-          break;
-          
-        case 'month':
-          // Get the month containing the specified date
-          startDate = new Date(date.getFullYear(), date.getMonth(), 1);
-          endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-          break;
-          
-        case 'day':
-          // Get the specified day with some buffer to handle timezone issues
-          startDate = new Date(date);
-          startDate.setHours(0, 0, 0, 0); // Start of day
-          endDate = new Date(date);
-          endDate.setHours(23, 59, 59, 999); // End of day
-          break;
-          
-        default:
-          // Default to week view
-          const defaultWeekStart = new Date(date);
-          defaultWeekStart.setDate(date.getDate() - date.getDay());
-          const defaultWeekEnd = new Date(defaultWeekStart);
-          defaultWeekEnd.setDate(defaultWeekStart.getDate() + 6);
-          
-          startDate = defaultWeekStart;
-          endDate = defaultWeekEnd;
-      }
-      
-      const fetchedEvents = await fetchEvents(
-        DEMO_CALENDAR_ID,
-        startDate.toISOString(),
-        endDate.toISOString()
-      );
-      
-      setEvents(fetchedEvents);
-      
-    } catch (error) {
-      console.error('Error loading events for view:', error);
-      setEvents([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
 
   // Global navigation function for Echo flowchart clicks
   const gotoDateWithTitle = useCallback((dateStr: string, eventTitle?: string) => {
@@ -281,13 +113,10 @@ function AppContent() {
       // Navigate to the target date
       setCurrentDate(targetDate);
       
-      // Load events for the new date with current view
-      loadEventsForView(currentView, targetDate);
-      
     } catch (error) {
       console.error('Error navigating to date:', error);
     }
-  }, [loadEventsForView, currentView]);
+  }, []);
 
   // Expose the navigation function globally for Echo flowchart clicks
   useEffect(() => {
@@ -396,53 +225,50 @@ function AppContent() {
     <div className="min-h-screen bg-gray-50">
       <div className="flex">
         {/* Left Sidebar */}
-        <Sidebar onFilterChange={handleFilterChange} />
+        <Sidebar onFilterChange={handleFilterChange}>
+          <HexaWorker
+            calendarData={{
+              events: safeEvents,
+              weatherData: weatherData,
+              location: location,
+              currentView: displayedPeriod?.view ?? currentView,
+              currentDate: displayedPeriod?.date ?? currentDate,
+            }}
+          />
+        </Sidebar>
         
         {/* Main Content Area */}
         <div className="flex-1 p-6">
-          <div className="mb-6 flex items-baseline gap-4">
+          <div className="mb-6 flex flex-wrap items-baseline gap-4">
             <h1 className="text-3xl font-bold text-gray-800">Calendar</h1>
-            {!isLoading && (
+            {displayedPeriod && (
               <div className="text-sm text-gray-600">
                 Showing {filterStats.visible} of {filterStats.total} events
                 {filterStats.hidden > 0 && ` (${filterStats.hidden} hidden)`}
               </div>
             )}
+            <DownloadLogsButton />
           </div>
           
-          {isLoading ? (
+          {!displayedPeriod ? (
             <CalendarSkeleton />
           ) : (
             <Calendar
               events={filteredEvents}
-              currentView={currentView}
-              currentDate={currentDate}
+              currentView={displayedPeriod.view}
+              currentDate={displayedPeriod.date}
+              navigationView={currentView}
+              navigationDate={currentDate}
+              isLoading={isLoading}
               onEventClick={handleEventClick}
               onDateClick={handleDateClick}
               onTimeSlotClick={handleTimeSlotClick}
-              onViewChange={(view) => {
-                setCurrentView(view);
-                // Load events for the new view with current date
-                loadEventsForView(view, currentDate);
-              }}
-              onDateChange={(date) => {
-                setCurrentDate(date);
-                // Pass the new date directly to avoid state update timing issues
-                loadEventsForDate(date);
-              }}
+              onViewChange={setCurrentView}
+              onDateChange={setCurrentDate}
             />
           )}
         </div>
       </div>
-      
-      {/* Voice Worker - positioned at bottom left */}
-      <HexaWorker
-        calendarData={{
-          events: safeEvents,
-          weatherData: weatherData,
-          location: location
-        }}
-      />
       
       <EventModal
         isOpen={isModalOpen}

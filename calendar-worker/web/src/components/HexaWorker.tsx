@@ -1,11 +1,16 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { sessionManager } from '../utils/sessionManager';
+import { captureHexaConsoleEntry } from '../utils/console-log-capture';
 import type { Event } from '../lib/api';
+import type { View } from '../lib/date';
+import { getCalendarWeatherContext, type CalendarWeatherContext } from '../lib/calendarWeatherContext';
 
 interface CalendarData {
   events: Event[];
   weatherData?: any;
   location?: string;
+  currentView: View;
+  currentDate: Date;
 }
 
 interface HexaWorkerProps {
@@ -16,10 +21,11 @@ interface HexaWorkerProps {
 /**
  * Format calendar data as a human-readable summary for the voice worker
  */
-function formatCalendarSummary(calendarData: CalendarData): string {
+function formatCalendarSummary(calendarData: CalendarData, weatherContext: CalendarWeatherContext): string {
   const { events, weatherData, location } = calendarData;
   
   let summary = `# Calendar Summary for ${location || 'Unknown Location'}\n\n`;
+  summary += `Selected view: ${weatherContext.view}\nSelected dates: ${weatherContext.startDate} through ${weatherContext.endDate}\n\n`;
   summary += `Total Events: ${events.length}\n\n`;
   
   // Group events by date
@@ -51,25 +57,32 @@ function formatCalendarSummary(calendarData: CalendarData): string {
     summary += `\n`;
   });
   
-  // Add weather section if available
+  // Keep current conditions distinct from the selected period's forecast.
   if (weatherData && weatherData.current_weather) {
-    summary += `## Weather\n\n`;
+    summary += `## Current Weather (now)\n\n`;
     summary += `Current Temperature: ${weatherData.current_weather.temperature}°F\n`;
-    
-    if (weatherData.daily) {
-      summary += `\n### 7-Day Forecast\n`;
-      for (let i = 0; i < Math.min(7, weatherData.daily.time?.length || 0); i++) {
-        const date = weatherData.daily.time[i];
-        const tempMax = weatherData.daily.temperature_2m_max?.[i];
-        const tempMin = weatherData.daily.temperature_2m_min?.[i];
-        const precip = weatherData.daily.precipitation_probability_max?.[i];
-        
-        summary += `- ${date}: ${tempMin}°F - ${tempMax}°F`;
-        if (precip > 30) {
-          summary += ` (${precip}% rain)`;
-        }
-        summary += `\n`;
-      }
+  }
+
+  summary += `\n## Weather for the selected ${weatherContext.view}\n\n`;
+  summary += `Forecast available for ${weatherContext.forecast.length} of ${weatherContext.totalDays} days.\n`;
+  if (weatherContext.unavailableDates.length > 0) {
+    summary += `Forecast unavailable for: ${weatherContext.unavailableDates.join(', ')}. Do not infer clear weather or invent conditions for these dates.\n`;
+  }
+  summary += `\n### Bad-weather warnings (${weatherContext.badWeatherEvents.length})\n`;
+  for (const event of weatherContext.badWeatherEvents) {
+    summary += `- ${event.start}: ${event.title}\n`;
+  }
+  if (weatherContext.badWeatherEvents.length === 0) {
+    summary += weatherContext.forecast.length > 0
+      ? `No bad-weather warnings in the available forecast for this period.\n`
+      : `No forecast available for this period; bad-weather conditions are unknown.\n`;
+  }
+  if (weatherContext.forecast.length > 0) {
+    const measurement = (value: number | null, unit: string) => value === null ? 'unavailable' : `${value} ${unit}`;
+    const { units } = weatherContext;
+    summary += `\n### Daily forecast for the selected period\n`;
+    for (const day of weatherContext.forecast) {
+      summary += `- ${day.date}: Low ${measurement(day.temperatureMin, units.temperatureMin)}, high ${measurement(day.temperatureMax, units.temperatureMax)}; precipitation probability ${measurement(day.precipitationProbability, units.precipitationProbability)}; maximum wind ${measurement(day.windSpeed, units.windSpeed)}; weather code ${day.weatherCode ?? 'unavailable'}.\n`;
     }
   }
   
@@ -78,13 +91,52 @@ function formatCalendarSummary(calendarData: CalendarData): string {
 
 export const HexaWorker: React.FC<HexaWorkerProps> = ({ 
   calendarData,
-  hexaWorkerUrl = 'https://hexa-worker.prabhatravib.workers.dev'
+  hexaWorkerUrl = 'https://hexa-worker-v2.prabhatravib.workers.dev'
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const lastSentDataRef = useRef<string | null>(null);
+  const iframeSetupTimeoutsRef = useRef<number[]>([]);
+  const presentationRef = useRef({ visualHidden: true, transcriptHidden: true });
+  const workerOrigin = new URL(hexaWorkerUrl).origin;
+  const weatherContext = useMemo(() => getCalendarWeatherContext(
+    calendarData.weatherData, calendarData.currentView, calendarData.currentDate,
+  ), [calendarData.weatherData, calendarData.currentView, calendarData.currentDate]);
+
+  const configureIframe = useCallback(() => {
+    const frame = iframeRef.current?.contentWindow;
+    if (!frame) return;
+
+    frame.postMessage({
+      type: 'SET_LAYOUT_SPLIT',
+      hexagonHeight: 40,
+      chatHeight: 60,
+      hideHexagon: false,
+      compactHexagon: true,
+    }, workerOrigin);
+    frame.postMessage({ type: 'SET_ASPECT_COUNT', aspectCount: 0 }, workerOrigin);
+    // Seed a fresh iframe, then let Hexa's native controls own visibility.
+    // The snapshot also preserves the user's choices after a connection reset.
+    frame.postMessage({
+      type: 'SET_NARRATOR_PRESENTATION',
+      ...presentationRef.current,
+    }, workerOrigin);
+  }, [workerOrigin]);
+
+  const handleIframeLoad = () => {
+    iframeSetupTimeoutsRef.current.forEach(window.clearTimeout);
+    configureIframe();
+    // Reapply after the embedded React app has registered its message listener.
+    iframeSetupTimeoutsRef.current = [400, 1200].map(delay =>
+      window.setTimeout(configureIframe, delay)
+    );
+  };
+
+  useEffect(() => () => {
+    iframeSetupTimeoutsRef.current.forEach(window.clearTimeout);
+    iframeSetupTimeoutsRef.current = [];
+  }, [sessionId]);
 
   // Subscribe to session changes
   useEffect(() => {
@@ -93,21 +145,21 @@ export const HexaWorker: React.FC<HexaWorkerProps> = ({
       console.log('🆔 HexaWorker received session ID:', newSessionId);
     });
     const currentSessionId = sessionManager.getSessionId();
-    if (currentSessionId) setSessionId(currentSessionId);
+    setSessionId(currentSessionId || sessionManager.generateSessionId());
     return unsubscribe;
   }, []);
 
   // Send calendar data to voice worker when it changes
   useEffect(() => {
-    if (!calendarData.events || calendarData.events.length === 0) {
-      console.log('⏭️ Skipping empty calendar data send');
-      return;
-    }
+    if (!sessionId) return;
 
     const dataHash = JSON.stringify({
-      eventsCount: calendarData.events.length,
+      events: calendarData.events,
+      weatherData: calendarData.weatherData,
+      weatherContext,
       location: calendarData.location,
-      sessionId: sessionId || 'default',
+      sessionId,
+      hexaWorkerUrl,
     });
 
     // Deduplicate: skip if data hasn't changed
@@ -120,21 +172,28 @@ export const HexaWorker: React.FC<HexaWorkerProps> = ({
     setIsLoading(true);
 
     // Format calendar data as a text summary for the voice worker
-    const calendarSummary = formatCalendarSummary(calendarData);
+    const calendarSummary = formatCalendarSummary({
+      events: calendarData.events,
+      weatherData: calendarData.weatherData,
+      location: calendarData.location,
+      currentView: calendarData.currentView,
+      currentDate: calendarData.currentDate,
+    }, weatherContext);
 
     // Send calendar events and weather data to voice worker
     // Format matches the diagram data format from the reference implementation
     const payload = {
       mermaidCode: calendarSummary, // Use mermaidCode field like diagram data
       diagramImage: '', // Not applicable for calendar data
-      prompt: `Calendar data for ${calendarData.location} with ${calendarData.events.length} events`,
+      prompt: `Calendar data for ${calendarData.location} with ${calendarData.events.length} events. Selected ${weatherContext.view}: ${weatherContext.startDate} through ${weatherContext.endDate}. Use the selected period's weather context for weather questions.`,
       type: 'calendar',
-      sessionId: sessionId || 'default',
+      sessionId,
       // Additional calendar-specific data
       calendarData: {
         events: calendarData.events,
         weatherData: calendarData.weatherData,
         location: calendarData.location,
+        weatherContext,
       }
     };
 
@@ -142,7 +201,7 @@ export const HexaWorker: React.FC<HexaWorkerProps> = ({
       url: `${hexaWorkerUrl}/api/external-data`,
       eventsCount: calendarData.events.length,
       location: calendarData.location,
-      sessionId: sessionId || 'default'
+      sessionId
     });
 
     fetch(`${hexaWorkerUrl}/api/external-data`, {
@@ -176,25 +235,24 @@ export const HexaWorker: React.FC<HexaWorkerProps> = ({
         });
         lastSentDataRef.current = null;
       });
-  }, [calendarData.events, calendarData.weatherData, calendarData.location, sessionId, hexaWorkerUrl]);
+  }, [calendarData.events, calendarData.weatherData, calendarData.location, calendarData.currentView, calendarData.currentDate, weatherContext, sessionId, hexaWorkerUrl]);
 
-  // Handle voice worker initialization
-  const handleExpandToggle = () => {
-    if (!isExpanded) {
-      // Generate session ID when opening voice worker
-      if (!sessionId) {
-        const newSessionId = sessionManager.generateSessionId();
-        console.log('🎙️ Voice worker opened with session:', newSessionId);
-      }
-    }
-    setIsExpanded(!isExpanded);
+  const handleResetConnection = () => {
+    sessionManager.generateSessionId();
   };
 
   // Listen for messages from iframe
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      // Only accept messages from the hexagon worker domain
-      if (!event.origin.includes('prabhatravib.workers.dev')) {
+      if (event.origin !== workerOrigin || event.source !== iframeRef.current?.contentWindow) {
+        return;
+      }
+
+      if (!event.data || typeof event.data !== 'object') return;
+
+      // Capture trusted relay entries once, without echoing them as host logs.
+      if (event.data.type === 'HEXA_CONSOLE_LOG') {
+        captureHexaConsoleEntry(event.data.payload);
         return;
       }
 
@@ -202,6 +260,22 @@ export const HexaWorker: React.FC<HexaWorkerProps> = ({
 
       // Handle different message types
       switch (event.data.type) {
+        case 'IFRAME_READY':
+          if (event.data.sessionId === sessionId) configureIframe();
+          break;
+        case 'HEXA_PRESENTATION_STATE':
+          if (
+            event.data.source === 'hexa-presentation-state' &&
+            event.data.sessionId === sessionId &&
+            typeof event.data.visualHidden === 'boolean' &&
+            typeof event.data.transcriptHidden === 'boolean'
+          ) {
+            presentationRef.current = {
+              visualHidden: event.data.visualHidden,
+              transcriptHidden: event.data.transcriptHidden,
+            };
+          }
+          break;
         case 'transcription':
           console.log('🎤 Transcription:', event.data.text);
           break;
@@ -218,121 +292,49 @@ export const HexaWorker: React.FC<HexaWorkerProps> = ({
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, []);
+  }, [workerOrigin, configureIframe, sessionId]);
 
   return (
-    <>
-      {/* Floating Voice Worker Button */}
-      <div className="fixed bottom-6 left-6 z-50">
+    <section className="calendar-voice-panel" aria-label="Voice Panel">
+      <div className="calendar-voice-panel__header">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-gray-900">Voice Pane</h2>
+          <p className="text-xs text-gray-500" role="status">
+            {isLoading ? 'Syncing calendar...' : `${calendarData.events.length} events loaded`}
+          </p>
+        </div>
         <button
-          onClick={handleExpandToggle}
-          className={`
-            group relative flex items-center justify-center
-            w-14 h-14 rounded-full shadow-lg
-            transition-all duration-300 ease-in-out
-            ${isExpanded 
-              ? 'bg-red-500 hover:bg-red-600' 
-              : 'bg-blue-500 hover:bg-blue-600'
-            }
-            ${isLoading ? 'animate-pulse' : ''}
-          `}
-          title={isExpanded ? 'Close Voice Assistant' : 'Open Voice Assistant'}
+          type="button"
+          onClick={handleResetConnection}
+          className="calendar-voice-panel__reset"
+          title="Reset voice connection"
+          aria-label="Reset voice connection"
+          disabled={!sessionId}
         >
-          {isExpanded ? (
-            // Close icon
-            <svg 
-              className="w-6 h-6 text-white" 
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-            >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth={2} 
-                d="M6 18L18 6M6 6l12 12" 
-              />
-            </svg>
-          ) : (
-            // Microphone icon
-            <svg 
-              className="w-6 h-6 text-white" 
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-            >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth={2} 
-                d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" 
-              />
-            </svg>
-          )}
-          
-          {/* Tooltip */}
-          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-            {isExpanded ? 'Close Voice Assistant' : 'Open Voice Assistant'}
-          </div>
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+            <path d="M3 3v5h5" />
+          </svg>
         </button>
-
-        {/* Loading indicator */}
-        {isLoading && !isExpanded && (
-          <div className="absolute top-0 right-0 w-3 h-3 bg-green-400 rounded-full animate-ping"></div>
+      </div>
+      <div className="calendar-voice-panel__body">
+        {sessionId ? (
+          <iframe
+            key={sessionId}
+            ref={iframeRef}
+            src={`${hexaWorkerUrl}/enhancedMode?showChat=true&sessionId=${encodeURIComponent(sessionId)}&iframe=true&curtains=true&voice=off`}
+            className="calendar-voice-panel__frame"
+            allow="microphone; autoplay"
+            title="Voice Assistant - Hexagon and Chat"
+            onLoad={handleIframeLoad}
+          />
+        ) : (
+          <p className="p-4 text-center text-sm text-gray-500" role="status">
+            Initializing voice assistant...
+          </p>
         )}
       </div>
-
-      {/* Expandable Voice Worker Panel */}
-      {isExpanded && (
-        <div className="fixed bottom-24 left-6 z-40 bg-white rounded-lg shadow-2xl overflow-hidden transition-all duration-300 ease-in-out">
-          <div className="w-96 h-[32rem]">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <svg 
-                  className="w-5 h-5" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round" 
-                    strokeWidth={2} 
-                    d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" 
-                  />
-                </svg>
-                <h3 className="font-semibold">Voice Assistant</h3>
-              </div>
-              <div className="flex items-center gap-2 text-xs opacity-90">
-                {calendarData.events.length} events loaded
-              </div>
-            </div>
-
-            {/* iframe Container */}
-            <div className="w-full h-[calc(100%-3rem)] bg-gray-50">
-              {sessionId ? (
-                <iframe
-                  ref={iframeRef}
-                  src={`${hexaWorkerUrl}/?sessionId=${sessionId}&iframe=true`}
-                  className="w-full h-full border-0"
-                  allow="microphone; camera"
-                  title="Voice Assistant"
-                  sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
-                />
-              ) : (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-center text-gray-500">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-                    <p>Initializing voice assistant...</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-    </>
+    </section>
   );
 };
 
