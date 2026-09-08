@@ -124,7 +124,7 @@ class WeatherService {
       daily: 'temperature_2m_max,temperature_2m_min,precipitation_probability_max,windspeed_10m_max,weathercode',
       current_weather: 'true',
       timezone: 'auto',
-      forecast_days: '14',
+      forecast_days: '16',
       temperature_unit: 'fahrenheit'
     });
 

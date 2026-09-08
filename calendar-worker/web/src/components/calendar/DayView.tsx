@@ -1,6 +1,6 @@
 
 import { useMemo, Fragment } from 'react';
-import { isSameDay, isToday, formatTime } from '../../lib/date';
+import { isSameDay, isToday } from '../../lib/date';
 import { MinuteIndicator } from './MinuteIndicator';
 import { CurrentTimeLine } from './CurrentTimeLine';
 import { isEarlyHour, isLateHour } from '../../lib/utils';
@@ -9,6 +9,12 @@ import { HourBoundaryToggle } from './HourBoundaryToggle';
 import { useWeatherEvents } from '../../lib/hooks/useWeatherEvents';
 import { useMinuteOfDay } from '../../lib/hooks/useMinuteOfDay';
 import type { Event } from '../../lib/api';
+
+const HOUR_LABEL_FORMAT: Intl.DateTimeFormatOptions = {
+  hour: 'numeric',
+  minute: '2-digit',
+  hour12: true
+};
 
 interface DayViewProps {
   date: Date;
@@ -200,13 +206,13 @@ export function DayView({ date, events, onEventClick, onTimeSlotClick }: DayView
         );
       })()}
 
-      {/* Time grid - restructured for perfect alignment */}
+      {/* Time grid uses the same hour sizing and separators as Week view */}
       <div
-        className="grid bg-white"
-        style={{ gridTemplateColumns: '80px 1fr', gap: '0px', minHeight: `${hours.length * 64 + 2}px` }}
+        className="grid relative"
+        style={{ gridTemplateColumns: '80px 1fr', gap: '0px' }}
       >
         {/* Render each hour as a single row spanning both columns */}
-        {Array.isArray(hours) && hours.map((hour) => {
+        {Array.isArray(hours) && hours.map((hour, hourIndex) => {
           if (!hour || !(hour instanceof Date) || isNaN(hour.getTime())) {
             console.warn('Invalid hour in render:', hour);
             return null;
@@ -234,30 +240,30 @@ export function DayView({ date, events, onEventClick, onTimeSlotClick }: DayView
             <Fragment key={hourValue}>
               {/* Timeline column - hour label - NO horizontal lines, just the time */}
               <div
-                className={`text-sm text-black border-r relative flex items-start pt-0 self-center ${
+                className={`bg-white border-r border-t-0 min-w-[80px] text-right p-1 text-sm text-gray-600 font-medium relative flex items-start h-[70px] self-center ${
                   isEarly ? 'time-slot-early-hours' : ''
                 } ${
                   isLate ? 'time-slot-late-hours' : ''
                 }`}
-                style={{ height: 'calc(100% - 4px)', minHeight: '60px', color: 'black', backgroundColor: 'white', borderRightColor: '#e5e7eb' }}
+                style={{ borderRightColor: '#e5e7eb', borderTopColor: 'transparent' }}
               >
                 {isEarlyBoundary ? (
                   <HourBoundaryToggle
                     range="early"
-                    label={formatTime(hour, 'h:mm a')}
+                    label={hour.toLocaleTimeString('en-US', HOUR_LABEL_FORMAT)}
                     collapsed={earlyHoursCollapsed}
                     onToggle={handleEarlyHoursToggle}
                     edge="top"
                   />
                 ) : hourValue === 22 ? null : (
                   <div className="absolute top-0 right-2 transform -translate-y-1/2 bg-white px-1">
-                    {formatTime(hour, 'h:mm a')}
+                    {hour.toLocaleTimeString('en-US', HOUR_LABEL_FORMAT)}
                   </div>
                 )}
                 {isLateBoundary && (
                   <HourBoundaryToggle
                     range="late"
-                    label={formatTime(timelineHours[22], 'h:mm a')}
+                    label={timelineHours[22].toLocaleTimeString('en-US', HOUR_LABEL_FORMAT)}
                     collapsed={lateHoursCollapsed}
                     onToggle={handleLateHoursToggle}
                     edge="bottom"
@@ -270,18 +276,19 @@ export function DayView({ date, events, onEventClick, onTimeSlotClick }: DayView
 
               {/* Events column - event content with horizontal lines */}
               <div
-                className={`p-2 border-r border-t cursor-pointer hover:bg-gray-50 transition-colors relative ${
+                className={`p-1 border-r h-[70px] bg-white cursor-pointer hover:bg-gray-50 transition-colors relative ${
                   isEarly ? 'time-slot-early-hours' : ''
                 } ${
                   isLate ? 'time-slot-late-hours' : ''
                 }`}
-                style={{
-                  height: 'calc(100% - 4px)',
-                  minHeight: '60px',
-                  borderRightColor: '#e5e7eb',
-                  borderTopColor: isBoundaryTop ? '#d1d5db' : '#e5e7eb'
-                }}
+                style={{ borderRightColor: '#e5e7eb' }}
               >
+                {hourIndex > 0 && !isBoundaryTop && (
+                  <div className="absolute top-0 left-0 right-0 h-px bg-gray-200"></div>
+                )}
+                {isBoundaryTop && (
+                  <div className="hour-boundary-line" style={{ top: 0 }}></div>
+                )}
                 {isLateBoundary && lateHoursCollapsed && (
                   <div className="hour-boundary-line" style={{ bottom: 0 }}></div>
                 )}

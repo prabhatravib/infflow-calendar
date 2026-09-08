@@ -201,10 +201,7 @@ function AppContent() {
     <div className="bg-white rounded-lg shadow p-8">
       <div className="flex flex-col items-center justify-center min-h-[400px]">
         {/* Single elegant loading spinner */}
-        <div className="relative">
-          <div className="w-16 h-16 border-4 border-gray-200 border-t-blue-500 rounded-full animate-spin"></div>
-          <div className="absolute inset-0 w-16 h-16 border-4 border-transparent border-r-blue-400 rounded-full animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1.5s' }}></div>
-        </div>
+        <div className="w-16 h-16 border-4 border-gray-200 border-t-blue-500 rounded-full animate-spin"></div>
         
         {/* Loading text */}
         <div className="mt-6 text-lg font-medium text-gray-600">

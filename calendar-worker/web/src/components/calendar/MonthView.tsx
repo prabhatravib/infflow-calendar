@@ -1,6 +1,9 @@
 
-import { isSameDay, isToday, getMonthDays, getWeekdayNames } from '../../lib/date';
+import { isSameDay, isToday, getMonthDays, getWeekdayNames, formatDate } from '../../lib/date';
+import { useWeatherEvents } from '../../lib/hooks/useWeatherEvents';
 import type { Event } from '../../lib/api';
+
+const MAX_VISIBLE_EVENTS = 3;
 
 interface MonthViewProps {
   date: Date;
@@ -13,6 +16,15 @@ interface MonthViewProps {
 export function MonthView({ date, events, onEventClick, onDateClick, className = '' }: MonthViewProps) {
   // Ensure events is always an array
   const safeEvents = Array.isArray(events) ? events : [];
+
+  // Bad-weather days are tinted red rather than added as event chips, so a
+  // forecast never eats one of the three visible event slots.
+  const { weatherEvents } = useWeatherEvents();
+  const badWeatherByDate = new Map<string, string>(
+    (Array.isArray(weatherEvents) ? weatherEvents : [])
+      .filter(weatherEvent => weatherEvent?.start)
+      .map(weatherEvent => [weatherEvent.start, weatherEvent.title as string])
+  );
   
   const monthDays = getMonthDays(date);
   const weekdays = getWeekdayNames(1);
@@ -45,8 +57,8 @@ export function MonthView({ date, events, onEventClick, onDateClick, className =
   const weekRows = [];
   for (let index = 0; index < daysWithEvents.length; index += 7) {
     const busiestDay = Math.max(...daysWithEvents.slice(index, index + 7).map(({ dayEvents }) => dayEvents.length));
-    // Keep dates aligned by week, giving more room to an event and the +more line.
-    weekRows.push(`minmax(min-content, ${1 + Math.min(busiestDay, 2)}fr)`);
+    // Keep dates aligned by week, allowing room for visible events and the +more line.
+    weekRows.push(`minmax(min-content, ${1 + Math.min(busiestDay, MAX_VISIBLE_EVENTS + 1)}fr)`);
   }
 
   // Get event type styling based on eventType
@@ -79,17 +91,28 @@ export function MonthView({ date, events, onEventClick, onDateClick, className =
         {daysWithEvents.map(({ day, dayEvents }, index) => {
           const isCurrentDay = isToday(day);
           const isCurrentMonth = day.getMonth() === date.getMonth();
-          
+          const badWeather = badWeatherByDate.get(formatDate(day, 'yyyy-MM-dd'));
+
+          // The bad-weather tint rides on a plain class, not a Tailwind bg-*
+          // utility: index.css hard-sets `background: white` on every
+          // `.calendar-month-view .grid > div`, which outranks all of them.
+          // It applies on top of today as well, since today stays identifiable
+          // by its blue number pill and border.
+          const backgroundClass = isCurrentDay ? 'bg-blue-50' : 'bg-white hover:bg-gray-50';
+
           return (
             <div
               key={index}
               className={`
-                p-1 bg-white cursor-pointer hover:bg-gray-50 transition-colors
+                p-1 cursor-pointer transition-colors
                 border-r border-b border-gray-100
+                ${backgroundClass}
+                ${badWeather ? 'day-bad-weather' : ''}
                 ${!isCurrentMonth ? 'text-gray-400' : ''}
-                ${isCurrentDay ? 'bg-blue-50 border-2 border-blue-300' : ''}
+                ${isCurrentDay ? 'border-2 border-blue-300' : ''}
               `}
               style={{ minHeight: '32px' }}
+              title={badWeather || undefined}
               onClick={() => onDateClick?.(day)}
             >
               {/* Date number - positioned at top-left with minimal spacing */}
@@ -101,10 +124,10 @@ export function MonthView({ date, events, onEventClick, onDateClick, className =
                 {day.getDate()}
               </div>
               
-              {/* Events - only show if there are events and space allows */}
+              {/* Show up to three events, followed by the remaining count. */}
               {dayEvents.length > 0 && (
                 <div className="mt-1">
-                  {dayEvents.slice(0, 1).map((event) => (
+                  {dayEvents.slice(0, MAX_VISIBLE_EVENTS).map((event) => (
                     <div
                       key={event.id}
                       className={`text-xs p-0.5 rounded truncate cursor-pointer ${getEventTypeStyling(event)}`}
@@ -116,9 +139,9 @@ export function MonthView({ date, events, onEventClick, onDateClick, className =
                       {event.title}
                     </div>
                   ))}
-                  {dayEvents.length > 1 && (
+                  {dayEvents.length > MAX_VISIBLE_EVENTS && (
                     <div className="text-xs text-gray-500 text-center">
-                      +{dayEvents.length - 1} more
+                      +{dayEvents.length - MAX_VISIBLE_EVENTS} more
                     </div>
                   )}
                 </div>

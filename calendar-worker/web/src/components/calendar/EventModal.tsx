@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { Event, CreateEventRequest, UpdateEventRequest } from '../../lib/api';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { EchoTab } from './EchoTab';
@@ -130,6 +130,22 @@ export function EventModal({
     onClose();
   };
 
+  // Close when clicking the backdrop (outside the panel). We require the press
+  // and the release to both land on the backdrop so a text selection that
+  // starts inside the panel and drifts outside doesn't close the modal.
+  const backdropPressRef = useRef(false);
+
+  const handleBackdropMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    backdropPressRef.current = e.target === e.currentTarget;
+  };
+
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget) return;
+    if (!backdropPressRef.current) return;
+    backdropPressRef.current = false;
+    handleClose();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -192,7 +208,11 @@ export function EventModal({
 
   return (
     <ErrorBoundary>
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div
+        className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+        onMouseDown={handleBackdropMouseDown}
+        onClick={handleBackdropClick}
+      >
         <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4">
           <div className="px-4 py-2 border-b border-gray-100">
             <div className="flex items-center justify-between">

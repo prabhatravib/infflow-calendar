@@ -1,5 +1,5 @@
 {
-  "name": "calendar-worker",
+  "name": "infflow-calendar",
   "main": "worker/index.ts",
   "compatibility_date": "2025-08-01",
   "assets": { 

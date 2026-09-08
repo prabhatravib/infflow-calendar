@@ -64,7 +64,7 @@ html, body {
   display: grid;
   grid-template-columns: 80px 1fr;
   gap: 0px;
-  background-color: white;
+  background-color: #f3f4f6;
 }
 
 .calendar-day-view {
@@ -77,9 +77,8 @@ html, body {
 }
 
 .calendar-day-view > .grid {
-  flex: 1 0 0;
-  /* Include the existing 2px margins above and below each hour's event cell. */
-  grid-auto-rows: minmax(64px, 1fr);
+  /* Keep the same fixed hour spacing as Week view instead of stretching rows. */
+  flex: 0 0 auto;
 }
 
 .animate-pulse {
@@ -253,6 +252,16 @@ html, body {
   padding: 8px;
 }
 
+/* The rule above outranks every Tailwind bg-* utility on a day cell, so the
+   bad-weather tint has to be matched at the same specificity to land. */
+.calendar-month-view .grid > div.day-bad-weather {
+  background: #fee9e9;
+}
+
+.calendar-month-view .grid > div.day-bad-weather:hover {
+  background: #fcd9d9;
+}
+
 .calendar-week-view .grid-cols-8 > div {
   background: white;
   min-height: 60px;
@@ -261,21 +270,6 @@ html, body {
 
 .calendar-day-view .border-b:last-child {
   border-bottom: none;
-}
-
-/* Day view time slot styling - unified borders for perfect alignment */
-/* Removed global border-bottom from .grid > div to allow per-column control */
-
-/* Remove duplicate border styles and pseudo-elements */
-.calendar-day-view .border-r > div {
-  background: white;
-}
-
-/* Additional day view styling for better visibility */
-.calendar-day-view .grid {
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
-  overflow: visible;
 }
 
 .calendar-month-view,

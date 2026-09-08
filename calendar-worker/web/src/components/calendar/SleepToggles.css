@@ -286,6 +286,11 @@
   padding-top: 26px;
 }
 
+/* Keep the midnight label's upper half inside the expanded Day view. */
+.calendar-day-view:not(.calendar-day-view--leading-pill) {
+  padding-top: 12px;
+}
+
 /* Decorative rule across the day columns marking the boundary */
 .hour-boundary-line {
   position: absolute;
