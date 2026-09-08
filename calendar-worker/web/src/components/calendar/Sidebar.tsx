@@ -32,7 +32,7 @@ export function Sidebar({ onFilterChange, className = '', children }: SidebarPro
   };
 
   return (
-    <div className={`sidebar bg-white border-r border-gray-100 p-6 w-80 flex-shrink-0 ${className}`}>
+    <div className={`sidebar bg-white border-r border-gray-100 p-6 w-80 flex-shrink-0 flex flex-col ${className}`}>
       {/* User Profile Section */}
       <div className="user-profile mb-8">
         <div className="flex items-center space-x-3 mb-4">

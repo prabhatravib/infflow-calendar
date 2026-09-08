@@ -1,64 +1,74 @@
 import { useState, useMemo } from 'react';
-import { formatDate, formatTime } from '../../lib/date';
+import { formatDate, formatTime, isSameDay, isToday } from '../../lib/date';
+import { useWeatherEvents } from '../../lib/hooks/useWeatherEvents';
 import type { Event } from '../../lib/api';
 
 interface ListViewProps {
+  date: Date;
   events: Event[];
   onEventClick?: (event: Event) => void;
   className?: string;
 }
 
-export function ListView({ events, onEventClick, className = '' }: ListViewProps) {
+export function ListView({ date, events, onEventClick, className = '' }: ListViewProps) {
   const [showWork, setShowWork] = useState(true);
   const [showFun, setShowFun] = useState(true);
   const [showOther, setShowOther] = useState(true);
-  const [showWeather, setShowWeather] = useState(true);
 
-  // Ensure events is always an array
-  const safeEvents = Array.isArray(events) ? events : [];
+  // Bad-weather warnings only; the service emits nothing for a good day.
+  const { weatherEvents } = useWeatherEvents();
+  const selectedDay = useMemo(
+    () => (date instanceof Date && !isNaN(date.getTime()) ? date : new Date()),
+    [date]
+  );
+
+  const badWeather = useMemo(() => {
+    const selectedKey = formatDate(selectedDay, 'yyyy-MM-dd');
+    const warning = weatherEvents.find(weatherEvent => weatherEvent?.start === selectedKey);
+    if (!warning) return null;
+    // Titles read "Bad Weather (Rain 60%)" - keep just the reason.
+    const reason = /\(([^)]*)\)/.exec(warning.title || '')?.[1];
+    return { reason: reason || 'Poor conditions' };
+  }, [weatherEvents, selectedDay]);
+
+  // Keep the agenda on the selected day, even while the next day is loading.
+  const dayEvents = useMemo(() => {
+    // Ensure events is always an array
+    const safeEvents = Array.isArray(events) ? events : [];
+    return safeEvents.filter(event => {
+      if (!event?.start) return false;
+      try {
+        const eventDate = new Date(event.start);
+        return !isNaN(eventDate.getTime()) && isSameDay(eventDate, selectedDay);
+      } catch (error) {
+        console.error('Error reading event date:', event, error);
+        return false;
+      }
+    });
+  }, [events, selectedDay]);
 
   // Sort events chronologically
   const sortedEvents = useMemo(() => {
-    if (!Array.isArray(safeEvents)) {
-      return [];
-    }
-    
-    return [...safeEvents].sort((a, b) => {
-      if (!a?.start || !b?.start) {
-        return 0;
-      }
-      
+    return [...dayEvents].sort((a, b) => {
       try {
         const dateA = new Date(a.start);
         const dateB = new Date(b.start);
-        
+
         if (isNaN(dateA.getTime()) || isNaN(dateB.getTime())) {
           return 0;
         }
-        
+
         return dateA.getTime() - dateB.getTime();
       } catch (error) {
         console.error('Error sorting events:', error);
         return 0;
       }
     });
-  }, [safeEvents]);
+  }, [dayEvents]);
 
   // Filter events based on type and visibility settings
   const filteredEvents = useMemo(() => {
-    if (!Array.isArray(sortedEvents)) {
-      return [];
-    }
-    
     return sortedEvents.filter(event => {
-      if (!event) {
-        return false;
-      }
-      
-      if (event.type === 'weather-warning') {
-        return showWeather;
-      }
-      
       const eventType = event.eventType || 'other';
       switch (eventType) {
         case 'work':
@@ -71,13 +81,9 @@ export function ListView({ events, onEventClick, className = '' }: ListViewProps
           return true;
       }
     });
-  }, [sortedEvents, showWork, showFun, showOther, showWeather]);
+  }, [sortedEvents, showWork, showFun, showOther]);
 
   const getEventTypeColor = (event: Event) => {
-    if (event.type === 'weather-warning') {
-      return 'bg-red-100 text-red-800 border-red-300';
-    }
-    
     const eventType = event.eventType || 'other';
     switch (eventType) {
       case 'work':
@@ -92,13 +98,11 @@ export function ListView({ events, onEventClick, className = '' }: ListViewProps
   };
 
   const getEventTypeLabel = (event: Event) => {
-    if (event.type === 'weather-warning') {
-      return 'Weather';
-    }
-    
     const eventType = event.eventType || 'other';
     return eventType.charAt(0).toUpperCase() + eventType.slice(1);
   };
+
+  const dayIsToday = isToday(selectedDay);
 
   return (
     <div className={`calendar-list-view ${className}`}>
@@ -106,7 +110,7 @@ export function ListView({ events, onEventClick, className = '' }: ListViewProps
       <div className="bg-white border-b border-gray-100 p-4">
         <div className="flex flex-wrap items-center gap-4">
           <span className="text-sm font-medium text-gray-700">Event Types:</span>
-          
+
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
@@ -116,7 +120,7 @@ export function ListView({ events, onEventClick, className = '' }: ListViewProps
             />
             <span className="text-sm text-gray-700">Work</span>
           </label>
-          
+
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
@@ -126,7 +130,7 @@ export function ListView({ events, onEventClick, className = '' }: ListViewProps
             />
             <span className="text-sm text-gray-700">Fun</span>
           </label>
-          
+
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
@@ -136,16 +140,16 @@ export function ListView({ events, onEventClick, className = '' }: ListViewProps
             />
             <span className="text-sm text-gray-700">Other</span>
           </label>
-          
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={showWeather}
-              onChange={(e) => setShowWeather(e.target.checked)}
-              className="rounded border-gray-300 text-red-600 focus:ring-red-500"
-            />
-            <span className="text-sm text-gray-700">Weather</span>
-          </label>
+
+          {badWeather && (
+            <span
+              className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-red-300 bg-red-100 px-2.5 py-1 text-xs font-medium text-red-800"
+              title={`Bad weather on ${formatDate(selectedDay, 'MMM dd, yyyy')}: ${badWeather.reason}`}
+            >
+              <span aria-hidden="true">&#9928;&#65039;</span>
+              Bad weather &middot; {badWeather.reason}
+            </span>
+          )}
         </div>
       </div>
 
@@ -153,19 +157,18 @@ export function ListView({ events, onEventClick, className = '' }: ListViewProps
       <div className="bg-white">
         {filteredEvents.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
-            No events found. Try adjusting your filters or add some events.
+            No events on {formatDate(selectedDay, 'MMM dd, yyyy')}. Try adjusting your filters or add some events.
           </div>
         ) : (
           <div className="divide-y divide-gray-200">
             {filteredEvents.map((event) => {
               const eventDate = new Date(event.start);
-              const isToday = new Date().toDateString() === eventDate.toDateString();
-              
+
               return (
                 <div
                   key={event.id}
                   className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors ${
-                    isToday ? 'bg-blue-25' : ''
+                    dayIsToday ? 'bg-blue-25' : ''
                   }`}
                   onClick={() => onEventClick?.(event)}
                 >
@@ -175,23 +178,23 @@ export function ListView({ events, onEventClick, className = '' }: ListViewProps
                         <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getEventTypeColor(event)}`}>
                           {getEventTypeLabel(event)}
                         </span>
-                        {isToday && (
+                        {dayIsToday && (
                           <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
                             Today
                           </span>
                         )}
                       </div>
-                      
+
                       <h3 className="text-lg font-medium text-gray-900 mb-1">
                         {event.title}
                       </h3>
-                      
+
                       {event.description && (
                         <p className="text-gray-600 text-sm mb-2 line-clamp-2">
                           {event.description}
                         </p>
                       )}
-                      
+
                       <div className="flex items-center gap-4 text-sm text-gray-500">
                         <div className="flex items-center gap-1">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -199,14 +202,14 @@ export function ListView({ events, onEventClick, className = '' }: ListViewProps
                           </svg>
                           {formatDate(eventDate, 'MMM dd, yyyy')}
                         </div>
-                        
+
                         <div className="flex items-center gap-1">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                           {formatTime(eventDate, 'HH:mm')}
                         </div>
-                        
+
                         {event.location && (
                           <div className="flex items-center gap-1">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -218,7 +221,7 @@ export function ListView({ events, onEventClick, className = '' }: ListViewProps
                         )}
                       </div>
                     </div>
-                    
+
                     <div className="text-right text-sm text-gray-500">
                       {event.all_day ? (
                         <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded">

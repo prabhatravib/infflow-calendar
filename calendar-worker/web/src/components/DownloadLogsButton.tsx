@@ -1,11 +1,15 @@
 import { downloadConsoleLogs } from '../utils/console-log-capture';
 
-export function DownloadLogsButton() {
+interface DownloadLogsButtonProps {
+  className?: string;
+}
+
+export function DownloadLogsButton({ className = '' }: DownloadLogsButtonProps) {
   return (
     <button
       type="button"
       onClick={downloadConsoleLogs}
-      className="ml-auto inline-flex shrink-0 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+      className={`inline-flex shrink-0 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${className}`}
       title="Download calendar and Hexa console logs"
       aria-label="Download calendar and Hexa console logs"
     >

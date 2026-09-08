@@ -94,6 +94,7 @@ export function Calendar({
       case 'list':
         return (
           <ListView
+            date={currentDate}
             events={allEvents}
             onEventClick={onEventClick}
           />
@@ -175,8 +176,7 @@ export function Calendar({
               <h2 className="text-lg font-semibold text-gray-900">
                 {currentView === 'month' && currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                 {currentView === 'week' && `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
-                {currentView === 'day' && currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-                {currentView === 'list' && 'All Events'}
+                {(currentView === 'day' || currentView === 'list') && currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
               </h2>
               <span role="status" className="absolute inset-x-0 top-full text-xs text-blue-600">
                 {isLoading ? 'Loading events...' : ''}

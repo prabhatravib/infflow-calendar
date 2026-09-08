@@ -232,6 +232,7 @@ function AppContent() {
               currentDate: displayedPeriod?.date ?? currentDate,
             }}
           />
+          <DownloadLogsButton className="mt-4 self-start" />
         </Sidebar>
         
         {/* Main Content Area */}
@@ -244,7 +245,6 @@ function AppContent() {
                 {filterStats.hidden > 0 && ` (${filterStats.hidden} hidden)`}
               </div>
             )}
-            <DownloadLogsButton />
           </div>
           
           {!displayedPeriod ? (

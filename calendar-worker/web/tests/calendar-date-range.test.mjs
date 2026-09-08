@@ -104,8 +104,11 @@ test('weeks spanning daylight saving changes retain the correct local boundaries
   assertRange(new Date('2026-11-01T21:45:00'), 'day', '2026-11-01', '2026-11-01');
 });
 
-test('list loading consistently uses the selected week', () => {
-  assertRange(new Date('2026-09-13T21:45:00'), 'list', '2026-09-07', '2026-09-13');
+test('list is an agenda for the selected day, and its arrows step one day', () => {
+  const date = new Date('2026-09-13T21:45:00');
+  assertRange(date, 'list', '2026-09-13', '2026-09-13');
+  assertRange(getNavigationDates(date, 'list').next, 'list', '2026-09-14', '2026-09-14');
+  assertRange(getNavigationDates(date, 'list').prev, 'list', '2026-09-12', '2026-09-12');
 });
 
 test('calculating ranges does not mutate the selected date', () => {

@@ -24,7 +24,7 @@ export function getCalendarWeatherContext(
     dates = Array.from({ length: daysInMonth }, (_, index) =>
       new Date(date.getFullYear(), date.getMonth(), index + 1)
     );
-  } else if (view === 'day') {
+  } else if (view === 'day' || view === 'list') {
     dates = [date];
   } else {
     // Match WeekView's Monday-Sunday columns, including when date is a Sunday.

@@ -4,7 +4,8 @@ export type View = 'month' | 'week' | 'day' | 'list';
 
 export function getCalendarDateRange(date: Date, view: View) {
   // Use the same days as the rendered grids, including adjacent month cells.
-  const days = view === 'day'
+  // List is an agenda for a single day, so its arrows step one day at a time.
+  const days = view === 'day' || view === 'list'
     ? [date]
     : view === 'month'
       ? getMonthDays(date)
@@ -255,6 +256,7 @@ export function getNavigationDates(currentDate: Date, view: View) {
     
     switch (view) {
       case 'day':
+      case 'list':
         return {
           prev: subDays(currentDate, 1),
           next: addDays(currentDate, 1),
@@ -308,6 +310,7 @@ export function isCurrentPeriod(date: Date, view: View, currentDate: Date) {
     
     switch (view) {
       case 'day':
+      case 'list':
         return isSameDay(date, currentDate);
       case 'week':
         return isSameWeek(date, currentDate, { weekStartsOn: 0 });
