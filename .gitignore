@@ -19,7 +19,7 @@ coverage
 .dev.vars
 
 # wrangler
-.wrangler
+.wrangler/
 
 # python
 __pycache__/
