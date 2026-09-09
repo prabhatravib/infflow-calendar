@@ -1,7 +1,9 @@
+import { useEffect, useState } from 'react';
 import { WeekView } from './WeekView';
 import { MonthView } from './MonthView';
 import { DayView } from './DayView';
 import { ListView } from './ListView';
+import { useTodayPulse } from './useTodayPulse';
 import type { Event } from '../../lib/api';
 import { getCalendarDateRange, getNavigationDates, type View } from '../../lib/date';
 
@@ -38,6 +40,26 @@ export function Calendar({
   const allEvents = Array.isArray(events) ? events : [];
   const { startDate, endDate } = getCalendarDateRange(currentDate, currentView);
 
+  // The grid keeps showing the previous period until its events arrive, so a
+  // Today click is held as a request and only pulses once today is on screen.
+  const [todayRequested, setTodayRequested] = useState(false);
+  const [todayPulse, setTodayPulse] = useState(0);
+  const now = new Date();
+  const periodShowsToday = now >= startDate && now <= endDate;
+
+  useEffect(() => {
+    if (!todayRequested || isLoading || !periodShowsToday) return;
+    setTodayRequested(false);
+    setTodayPulse(pulse => pulse + 1);
+  }, [todayRequested, isLoading, periodShowsToday]);
+
+  // Day and List have no separate "today" cell to flag, so their heading -
+  // which names the day - carries the pulse instead.
+  const headingPulseRun = useTodayPulse(todayPulse);
+  const headingPulseClass = headingPulseRun && (currentView === 'day' || currentView === 'list')
+    ? `today-pulse-text ${headingPulseRun}`
+    : '';
+
   const handleViewChange = (view: View) => {
     // Don't set internal state - let parent handle it
     if (onViewChange) {
@@ -49,7 +71,9 @@ export function Calendar({
     // Repeated clicks advance from the latest request, even before it loads.
     const { prev, next } = getNavigationDates(navigationDate, navigationView);
     const newDate = direction === 'prev' ? prev : next;
-    
+
+    // Navigating elsewhere abandons a pending Today pulse.
+    setTodayRequested(false);
     if (onDateChange) {
       onDateChange(newDate);
     }
@@ -57,6 +81,7 @@ export function Calendar({
 
   const handleToday = () => {
     const today = new Date();
+    setTodayRequested(true);
     if (onDateChange) {
       onDateChange(today);
     }
@@ -69,6 +94,7 @@ export function Calendar({
           <MonthView
             date={currentDate}
             events={allEvents}
+            todayPulse={todayPulse}
             onEventClick={onEventClick}
             onDateClick={onDateClick}
           />
@@ -78,6 +104,7 @@ export function Calendar({
           <WeekView
             date={currentDate}
             events={allEvents}
+            todayPulse={todayPulse}
             onEventClick={onEventClick}
             onTimeSlotClick={onTimeSlotClick}
           />
@@ -104,6 +131,7 @@ export function Calendar({
           <WeekView
             date={currentDate}
             events={allEvents}
+            todayPulse={todayPulse}
             onEventClick={onEventClick}
             onTimeSlotClick={onTimeSlotClick}
           />
@@ -173,7 +201,7 @@ export function Calendar({
             </button>
             
             <div className="relative min-w-[11rem] text-center">
-              <h2 className="text-lg font-semibold text-gray-900">
+              <h2 className={`text-lg font-semibold text-gray-900 ${headingPulseClass}`}>
                 {currentView === 'month' && currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                 {currentView === 'week' && `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
                 {(currentView === 'day' || currentView === 'list') && currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}

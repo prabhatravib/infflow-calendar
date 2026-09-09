@@ -245,6 +245,13 @@ function AppContent() {
                 {filterStats.hidden > 0 && ` (${filterStats.hidden} hidden)`}
               </div>
             )}
+            {/* Cropped to the wordmark's own bounds, so the height below is the
+                height it actually renders and ml-auto reaches the true edge. */}
+            <img
+              src="/infflow-logo.png"
+              alt="infflow"
+              className="ml-auto h-9 w-auto self-center object-contain"
+            />
           </div>
           
           {!displayedPeriod ? (

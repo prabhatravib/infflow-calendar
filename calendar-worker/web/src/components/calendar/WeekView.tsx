@@ -8,6 +8,7 @@ import { useSleepToggles } from './useSleepToggles';
 import { HourBoundaryToggle } from './HourBoundaryToggle';
 import { useWeatherEvents } from '../../lib/hooks/useWeatherEvents';
 import { useMinuteOfDay } from '../../lib/hooks/useMinuteOfDay';
+import { useTodayPulse } from './useTodayPulse';
 import type { Event } from '../../lib/api';
 
 const HOUR_LABEL_FORMAT: Intl.DateTimeFormatOptions = {
@@ -22,11 +23,13 @@ const LATE_BOUNDARY = new Date(1970, 0, 1, 22);
 interface WeekViewProps {
   date: Date;
   events: Event[];
+  /** Bumped by the Today button to flash today's column header. */
+  todayPulse?: number;
   onEventClick?: (event: Event) => void;
   onTimeSlotClick?: (date: Date, hour: number, minute?: number) => void;
 }
 
-export function WeekView({ date, events, onEventClick, onTimeSlotClick }: WeekViewProps) {
+export function WeekView({ date, events, todayPulse = 0, onEventClick, onTimeSlotClick }: WeekViewProps) {
   // Ensure date is valid
   const safeDate = date instanceof Date && !isNaN(date.getTime()) ? date : new Date();
   
@@ -35,6 +38,9 @@ export function WeekView({ date, events, onEventClick, onTimeSlotClick }: WeekVi
     return getWeekDays(safeDate, 1) || [];
   }, [safeDate]);
   
+  // Flashes today's day header right after the Today button lands here
+  const todayPulseRun = useTodayPulse(todayPulse);
+
   // Re-renders once a minute, which also rolls the indicators over at midnight
   const minuteOfDay = useMinuteOfDay();
   const currentHour = Math.floor(minuteOfDay / 60);
@@ -187,7 +193,7 @@ export function WeekView({ date, events, onEventClick, onTimeSlotClick }: WeekVi
               ${isCurrentDay ? 'bg-blue-50 text-blue-800' : 'text-gray-700'}
             `}>
               <div
-                className={`inline-block rounded-md px-3 py-1 mb-2 ${isCurrentDay ? 'bg-blue-50 ring-1 ring-inset ring-blue-100' : ''}`}
+                className={`inline-block rounded-md px-3 py-1 mb-2 ${isCurrentDay ? 'bg-blue-50 ring-1 ring-inset ring-blue-100' : ''} ${isCurrentDay && todayPulseRun ? `today-pulse-pill ${todayPulseRun}` : ''}`}
                 aria-current={isCurrentDay ? 'date' : undefined}
               >
                 <div className="font-bold">{formatDate(day, 'EEE')}</div>

@@ -1,6 +1,7 @@
 
 import { isSameDay, isToday, getMonthDays, getWeekdayNames, formatDate } from '../../lib/date';
 import { useWeatherEvents } from '../../lib/hooks/useWeatherEvents';
+import { useTodayPulse } from './useTodayPulse';
 import type { Event } from '../../lib/api';
 
 const MAX_VISIBLE_EVENTS = 3;
@@ -8,14 +9,19 @@ const MAX_VISIBLE_EVENTS = 3;
 interface MonthViewProps {
   date: Date;
   events: Event[];
+  /** Bumped by the Today button to flash today's cell. */
+  todayPulse?: number;
   onEventClick?: (event: Event) => void;
   onDateClick?: (date: Date) => void;
   className?: string;
 }
 
-export function MonthView({ date, events, onEventClick, onDateClick, className = '' }: MonthViewProps) {
+export function MonthView({ date, events, todayPulse = 0, onEventClick, onDateClick, className = '' }: MonthViewProps) {
   // Ensure events is always an array
   const safeEvents = Array.isArray(events) ? events : [];
+
+  // Flashes today's cell right after the Today button lands here
+  const todayPulseRun = useTodayPulse(todayPulse);
 
   // Bad-weather days are tinted red rather than added as event chips, so a
   // forecast never eats one of the three visible event slots.
@@ -110,6 +116,7 @@ export function MonthView({ date, events, onEventClick, onDateClick, className =
                 ${badWeather ? 'day-bad-weather' : ''}
                 ${!isCurrentMonth ? 'text-gray-400' : ''}
                 ${isCurrentDay ? 'border-2 border-blue-300' : ''}
+                ${isCurrentDay && todayPulseRun ? `today-pulse-cell ${todayPulseRun}` : ''}
               `}
               style={{ minHeight: '32px' }}
               title={badWeather || undefined}
