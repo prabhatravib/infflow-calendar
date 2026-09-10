@@ -94,6 +94,25 @@ html, body {
   }
 }
 
+/* Calendar loading spinner. Deliberately slower than Tailwind's 1s
+   animate-spin: at that speed a single frame dropped while the app boots
+   moves the arc far enough to read as a backwards jump. Only transform
+   animates and the layer is promoted up front, so the rotation stays on the
+   compositor while the main thread is still busy loading. */
+.calendar-spinner {
+  border-radius: 9999px;
+  border: 3px solid #e8eaed;
+  border-top-color: #7ba9f0;
+  animation: calendar-spinner-rotate 1.5s linear infinite;
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+@keyframes calendar-spinner-rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 /* "Today" jump feedback: whichever element stands in for today in the current
    view flashes a blue ring for two short cycles (see useTodayPulse). Only
    box-shadow animates, so nothing in the grid shifts while it runs. The -a/-b
@@ -168,6 +187,12 @@ html, body {
   .today-pulse-cell {
     animation: none;
     box-shadow: inset 0 0 0 3px rgba(37, 99, 235, 0.45);
+  }
+
+  /* A frozen ring reads as a hung page, so the spinner slows down here
+     instead of stopping the way the today-pulse does. */
+  .calendar-spinner {
+    animation-duration: 3s;
   }
 }
 

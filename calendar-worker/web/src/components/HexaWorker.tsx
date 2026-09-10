@@ -294,13 +294,21 @@ export const HexaWorker: React.FC<HexaWorkerProps> = ({
     return () => window.removeEventListener('message', handleMessage);
   }, [workerOrigin, configureIframe, sessionId]);
 
+  // The status line doubles as a hint about what the assistant can answer, so
+  // it names the weather forecast whenever one actually came through.
+  const eventCount = calendarData.events.length;
+  const eventLabel = `${eventCount} event${eventCount === 1 ? '' : 's'}`;
+  const loadedSummary = weatherContext.forecast.length > 0
+    ? `Details of ${eventLabel} and weather loaded`
+    : `Details of ${eventLabel} loaded`;
+
   return (
     <section className="calendar-voice-panel" aria-label="Voice Panel">
       <div className="calendar-voice-panel__header">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-gray-900">Voice Pane</h2>
-          <p className="text-xs text-gray-500" role="status">
-            {isLoading ? 'Syncing calendar...' : `${calendarData.events.length} events loaded`}
+          <p className="text-[11px] leading-tight text-gray-500" role="status">
+            {isLoading ? 'Syncing calendar...' : loadedSummary}
           </p>
         </div>
         <button
@@ -327,7 +335,17 @@ export const HexaWorker: React.FC<HexaWorkerProps> = ({
             // so the reader sees the hexagon rather than a blurred progress bar
             // and the first Voice ON is instant instead of a several-second
             // wait. The microphone is untouched until they tap the pill.
-            src={`${hexaWorkerUrl}/enhancedMode?showChat=true&sessionId=${encodeURIComponent(sessionId)}&iframe=true&curtains=true&voice=off&prewarm=true`}
+            //
+            // `curtainsStart=both` is what makes it arrive *covered*. This pane
+            // wants both regions hidden to begin with, and asking for that with
+            // the SET_NARRATOR_PRESENTATION below alone meant asking too late:
+            // the message cannot be posted until the frame has loaded, so the
+            // hexagon and the transcript painted in full and were covered a
+            // beat later. On the URL it is known before Hexa's first render, so
+            // the curtains are there from the start and the voice app boots
+            // behind them. The message still follows, and still matters — it is
+            // what restores the reader's own choices into a replaced iframe.
+            src={`${hexaWorkerUrl}/enhancedMode?showChat=true&sessionId=${encodeURIComponent(sessionId)}&iframe=true&curtains=true&curtainsStart=both&voice=off&prewarm=true`}
             className="calendar-voice-panel__frame"
             allow="microphone; autoplay"
             title="Voice Assistant - Hexagon and Chat"

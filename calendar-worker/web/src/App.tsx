@@ -13,6 +13,30 @@ import { getCalendarDateRange, type View } from './lib/date';
 
 const DEMO_CALENDAR_ID = '3c414e29-a3c3-4350-a334-5585cb22737a';
 
+// Calendar Skeleton Component - Clean single loading animation.
+// Kept at module scope on purpose: declared inside AppContent it was a fresh
+// component type on every render, so each re-render during boot (weather,
+// events, location) remounted this subtree and restarted the spinner from
+// zero degrees, which read as the arc jumping backwards.
+const CalendarSkeleton = () => (
+  <div className="bg-white rounded-lg shadow p-8">
+    <div className="flex flex-col items-center justify-center min-h-[400px]">
+      {/* Single elegant loading spinner */}
+      <div className="calendar-spinner w-16 h-16"></div>
+
+      {/* Loading text */}
+      <div className="mt-6 text-lg font-medium text-gray-600">
+        Loading calendar...
+      </div>
+
+      {/* Subtle pulse animation for the text */}
+      <div className="mt-2 text-sm text-gray-400 animate-pulse">
+        Please wait while the calendar loads...
+      </div>
+    </div>
+  </div>
+);
+
 function AppContent() {
   const [events, setEvents] = useState<Event[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -195,26 +219,6 @@ function AppContent() {
       updateFilter(key as keyof EventFilters, value);
     });
   };
-
-  // Calendar Skeleton Component - Clean single loading animation
-  const CalendarSkeleton = () => (
-    <div className="bg-white rounded-lg shadow p-8">
-      <div className="flex flex-col items-center justify-center min-h-[400px]">
-        {/* Single elegant loading spinner */}
-        <div className="w-16 h-16 border-4 border-gray-200 border-t-blue-500 rounded-full animate-spin"></div>
-        
-        {/* Loading text */}
-        <div className="mt-6 text-lg font-medium text-gray-600">
-          Loading calendar...
-        </div>
-        
-        {/* Subtle pulse animation for the text */}
-        <div className="mt-2 text-sm text-gray-400 animate-pulse">
-          Please wait while the calendar loads...
-        </div>
-      </div>
-    </div>
-  );
 
   const filterStats = getFilterStats();
 
