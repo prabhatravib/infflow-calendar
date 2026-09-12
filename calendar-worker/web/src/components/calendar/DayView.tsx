@@ -209,7 +209,7 @@ export function DayView({ date, events, onEventClick, onTimeSlotClick }: DayView
       {/* Time grid uses the same hour sizing and separators as Week view */}
       <div
         className="grid relative"
-        style={{ gridTemplateColumns: '80px 1fr', gap: '0px' }}
+        style={{ gridTemplateColumns: '80px minmax(0, 1fr)', gap: '0px' }}
       >
         {/* Render each hour as a single row spanning both columns */}
         {Array.isArray(hours) && hours.map((hour, hourIndex) => {

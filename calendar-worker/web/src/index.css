@@ -24,6 +24,9 @@ html, body {
 .calendar {
   /* Match the normal Week view: 16 hour rows, weekday/weather header and pills. */
   --calendar-view-height: 1320px;
+  /* Narrowest a day column may get. Below this the grid scrolls sideways
+     rather than squeezing a cell down to a couple of characters. */
+  --calendar-day-min: 96px;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
@@ -45,24 +48,29 @@ html, body {
   transition-duration: 150ms;
 }
 
+/* Every day column is an equal share of the width, floored at
+   --calendar-day-min. The minmax() is the point: a bare `1fr` means
+   `minmax(auto, 1fr)`, so a column holding "Quarterly Review Meeting" or a
+   weather pill grew to fit that text and its neighbours collapsed around it -
+   42px next to 205px on a laptop. minmax(<floor>, 1fr) caps every track at its
+   share instead, and the chips inside truncate to fit. */
 .calendar-month-view .grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  height: 100%;
+  grid-template-columns: repeat(7, minmax(var(--calendar-day-min), 1fr));
   gap: 0px;
   background-color: #f3f4f6;
 }
 
 .calendar-week-view .grid {
   display: grid;
-  grid-template-columns: 80px repeat(7, 1fr);
+  grid-template-columns: 80px repeat(7, minmax(var(--calendar-day-min), 1fr));
   gap: 0px;
   background-color: #f3f4f6;
 }
 
 .calendar-day-view .grid {
   display: grid;
-  grid-template-columns: 80px 1fr;
+  grid-template-columns: 80px minmax(0, 1fr);
   gap: 0px;
   background-color: #f3f4f6;
 }
@@ -322,16 +330,21 @@ html, body {
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
+  .calendar {
+    /* A phone has no room for the desktop floor; sideways scroll starts later. */
+    --calendar-day-min: 72px;
+  }
+
   .calendar-month-view .grid {
-    grid-template-columns: repeat(7, 1fr);
+    grid-template-columns: repeat(7, minmax(var(--calendar-day-min), 1fr));
   }
   
   .calendar-week-view .grid {
-    grid-template-columns: 80px repeat(7, 1fr);
+    grid-template-columns: 80px repeat(7, minmax(var(--calendar-day-min), 1fr));
   }
   
   .calendar-day-view .grid {
-    grid-template-columns: 60px 1fr;
+    grid-template-columns: 60px minmax(0, 1fr);
   }
   
   .day-weather {
@@ -378,8 +391,19 @@ html, body {
 .calendar-week-view,
 .calendar-day-view {
   height: var(--calendar-view-height, 1320px);
-  overflow-x: hidden;
+  /* auto, not hidden: once the columns hit --calendar-day-min the grid is
+     wider than the card, and scrolling to it beats clipping it. */
+  overflow-x: auto;
   overflow-y: auto;
+}
+
+/* Month rows carry their own floor and ceiling (see MonthView), so the card
+   takes the height its grid asks for instead of stretching five or six rows
+   across the week view's 1320px - which is what made a cell holding one chip
+   nearly 300px tall. It still never grows past the shared view height. */
+.calendar-month-view {
+  height: auto;
+  max-height: var(--calendar-view-height, 1320px);
 }
 
 /* Sidebar styles */

@@ -239,8 +239,9 @@ function AppContent() {
           <DownloadLogsButton className="mt-4 self-start" />
         </Sidebar>
         
-        {/* Main Content Area */}
-        <div className="flex-1 p-6">
+        {/* Main Content Area. min-w-0 so the calendar's day-column floor makes
+            the grid scroll inside its card instead of widening the page. */}
+        <div className="flex-1 min-w-0 p-6">
           <div className="mb-6 flex flex-wrap items-baseline gap-4">
             <h1 className="text-3xl font-bold text-gray-800">Calendar</h1>
             {displayedPeriod && (

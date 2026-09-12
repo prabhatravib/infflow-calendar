@@ -1,0 +1,31 @@
+Tested for **2 minutes 59 seconds using the desktop layout**, including verified **1440px width**. The browser changed viewport dimensions during some captures, so I’m keeping size-dependent findings qualified.
+
+**Findings**
+
+| Severity / type | Exact scenario | What happened → expected | Reproduced? |
+|---|---|---|---|
+| **Medium — confirmed inconsistency** | List → September 10 → uncheck **Fun** in the list’s filters | Hike disappeared, but header still said **“Showing 1 of 1 events”** and sidebar Fun remained checked. → Counts should reflect visible events; separate filters should be synchronized or clearly distinguished. | **Yes, twice.** |
+| **Medium — confirmed feedback problem** | Weather: enter `zzzz-no-such-city-998877` and submit | Loading finished without an invalid-city message. Weather panel stayed blank; Month retained weather warnings and voice status said weather loaded. → Explain lookup failure and identify any retained weather’s location. | **Yes, twice.** Weather data correctness unverified. |
+| **Low — keyboard UX concern** | Open doctor appointment or hike → press **Escape** | Edit dialog remained open. → Escape should normally dismiss an unchanged dialog. Close/Cancel worked. | **Yes, two events.** |
+| **Medium — width-specific layout concern** | September Month view at measured **1135px desktop width** | Document extended to **1362px**, requiring horizontal scrolling; Sunday was outside the visible area. → Keep all seven columns accessible without page-level horizontal scrolling. | Once; **not present at verified 1440px width**. |
+
+**Coverage: 12 scenarios**
+
+Week layout; appointment details; Escape dismissal; Echo empty state; Month view; individual category filtering; all categories hidden/restored; rapid month navigation; Today/Day navigation; early/late-hour expansion; List navigation/filtering; invalid weather location and restoration.
+
+**What worked**
+
+- Week, Month, Day, and List rendered.
+- Ordinary period navigation and Today worked.
+- Sidebar filtering updated Month events and counts correctly.
+- Early/late hours expanded.
+- Event details and Echo tab opened; Cancel/Close worked.
+- No crash or persistent loading failure observed.
+
+**Three priorities**
+
+1. Reconcile List filters, sidebar filters, and visible-event counts.
+2. Validate weather locations and clearly label failed or retained results.
+3. Check Month responsiveness across desktop widths, especially 1100–1400px.
+
+No events were created, edited, or deleted; no files changed. I restored New York, enabled filters, and returned to Today/Week. Voice, event saving/deletion, Echo generation, and weather accuracy remain untested.

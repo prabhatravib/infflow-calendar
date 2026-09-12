@@ -6,6 +6,37 @@ import type { Event } from '../../lib/api';
 
 const MAX_VISIBLE_EVENTS = 3;
 
+/*
+ * Week rows are bounded, not proportional. They used to be fr shares scaled by
+ * the busiest day in that week - 1fr for an empty week up to 5fr for a full one
+ * - stretched across the card's fixed height, so a week with four events came
+ * out five times the height of a quiet one and a cell holding a single chip ran
+ * to nearly 300px.
+ *
+ * Now each row asks for what its busiest day actually needs and is clamped to
+ * [MIN, MAX]. MIN comfortably holds a date number and two chips; MAX clears the
+ * fullest cell there is - three chips plus the "+N more" line - so nothing is
+ * ever cut off. In practice that is 132px for most weeks and 160px for a very
+ * busy one: no two rows differ by more than a fifth.
+ */
+const WEEK_ROW_MIN_PX = 132;
+const WEEK_ROW_MAX_PX = 160;
+
+/** A day cell's padding plus its date number, with no events under it. */
+const CELL_CHROME_PX = 36;
+/** Gap between the date number and the first chip. */
+const CELL_EVENT_GAP_PX = 4;
+/** One event chip and the margin below it; the "+N more" line costs the same. */
+const CELL_EVENT_PX = 32;
+
+/** Height a week row wants, given the event count of its busiest day. */
+function weekRowHeight(busiestDay: number): number {
+  // A day over the limit shows MAX_VISIBLE_EVENTS chips and one "+N more" line.
+  const lines = Math.min(busiestDay, MAX_VISIBLE_EVENTS + 1);
+  const wanted = CELL_CHROME_PX + (lines > 0 ? CELL_EVENT_GAP_PX + lines * CELL_EVENT_PX : 0);
+  return Math.min(Math.max(wanted, WEEK_ROW_MIN_PX), WEEK_ROW_MAX_PX);
+}
+
 interface MonthViewProps {
   date: Date;
   events: Event[];
@@ -63,8 +94,7 @@ export function MonthView({ date, events, todayPulse = 0, onEventClick, onDateCl
   const weekRows = [];
   for (let index = 0; index < daysWithEvents.length; index += 7) {
     const busiestDay = Math.max(...daysWithEvents.slice(index, index + 7).map(({ dayEvents }) => dayEvents.length));
-    // Keep dates aligned by week, allowing room for visible events and the +more line.
-    weekRows.push(`minmax(min-content, ${1 + Math.min(busiestDay, MAX_VISIBLE_EVENTS + 1)}fr)`);
+    weekRows.push(`${weekRowHeight(busiestDay)}px`);
   }
 
   // Get event type styling based on eventType
@@ -85,7 +115,10 @@ export function MonthView({ date, events, todayPulse = 0, onEventClick, onDateCl
   return (
     <div className={`calendar-month-view ${className}`}>
       {/* Weekday headers and calendar grid combined to eliminate any gap */}
-      <div className="grid grid-cols-7" style={{ gridTemplateRows: `max-content ${weekRows.join(' ')}` }}>
+      <div
+        className="grid grid-cols-7"
+        style={{ gridTemplateRows: `max-content ${weekRows.join(' ')}` }}
+      >
         {/* Weekday headers */}
         {weekdays.map((day, index) => (
           <div key={index} className="p-2 text-center text-sm font-medium text-gray-700 bg-white border-r border-gray-100 last:border-r-0 border-b border-gray-100">
