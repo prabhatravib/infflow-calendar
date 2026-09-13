@@ -1,6 +1,7 @@
 
-import { useMemo, Fragment } from 'react';
+import { useMemo, Fragment, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { getWeekDays, isSameDay, isToday, formatDate } from '../../lib/date';
+import { useIsMobile } from '../../lib/hooks/useViewport';
 import { MinuteIndicator } from './MinuteIndicator';
 import { CurrentTimeLine } from './CurrentTimeLine';
 import { isLateHour } from '../../lib/utils';
@@ -40,6 +41,32 @@ export function WeekView({ date, events, todayPulse = 0, onEventClick, onTimeSlo
   
   // Flashes today's day header right after the Today button lands here
   const todayPulseRun = useTodayPulse(todayPulse);
+
+  // On a phone the week is a sideways strip of day columns (index.css). It
+  // opens on today's column - Monday's, for any other week - and the Today
+  // button brings today's column back if it has been swiped away.
+  const isMobile = useIsMobile();
+  const weekRef = useRef<HTMLDivElement>(null);
+  const weekKey = weekDays.length > 0 ? formatDate(weekDays[0], 'yyyy-MM-dd') : '';
+
+  const scrollToToday = useCallback((behavior: ScrollBehavior) => {
+    const week = weekRef.current;
+    if (!week) return;
+    const todayHeader = week.querySelector<HTMLElement>('.calendar-week-view__day-header[data-today]');
+    // The pinned gutter covers the grid's first track, so land just past it.
+    const gutterWidth = week.querySelector<HTMLElement>('.calendar-week-view__corner')?.offsetWidth ?? 0;
+    week.scrollTo({ left: todayHeader ? todayHeader.offsetLeft - gutterWidth : 0, behavior });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (isMobile) scrollToToday('auto');
+  }, [isMobile, weekKey, scrollToToday]);
+
+  useEffect(() => {
+    if (!isMobile || todayPulse === 0) return;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    scrollToToday(reduceMotion ? 'auto' : 'smooth');
+  }, [isMobile, todayPulse, scrollToToday]);
 
   // Re-renders once a minute, which also rolls the indicators over at midnight
   const minuteOfDay = useMinuteOfDay();
@@ -177,19 +204,22 @@ export function WeekView({ date, events, todayPulse = 0, onEventClick, onTimeSlo
 
 
   return (
-    <div className="calendar-week-view relative">
+    <div ref={weekRef} className="calendar-week-view relative">
       {/* Single grid for headers and time slots */}
       <div className="grid grid-cols-8 relative">
         {/* Empty cell for time column */}
-        <div className="p-2 bg-white border-r border-gray-100 border-b border-gray-100 min-w-[80px]"></div>
+        <div className="calendar-week-view__corner p-2 bg-white border-r border-gray-100 border-b border-gray-100 min-w-[80px]"></div>
         {Array.isArray(weekDays) && weekDays.map((day, index) => {
           if (!day || !(day instanceof Date) || isNaN(day.getTime())) {
             return null; // Skip invalid dates
           }
           const isCurrentDay = isToday(day);
           return (
-            <div key={index} className={`
-              p-2 text-center text-sm font-medium bg-white border-r border-gray-100 last:border-r-0 border-b border-gray-100
+            <div
+              key={index}
+              data-today={isCurrentDay ? '' : undefined}
+              className={`
+              calendar-week-view__day-header p-2 text-center text-sm font-medium bg-white border-r border-gray-100 last:border-r-0 border-b border-gray-100
               ${isCurrentDay ? 'bg-blue-50 text-blue-800' : 'text-gray-700'}
             `}>
               <div
@@ -265,7 +295,7 @@ export function WeekView({ date, events, todayPulse = 0, onEventClick, onTimeSlo
           return (
             <Fragment key={hourValue}>
               {/* Time label - NO horizontal lines, just the time */}
-              <div className="bg-white border-r border-t-0 min-w-[80px] text-right pr-2 text-sm text-gray-600 font-medium relative flex items-start pt-0 h-[70px] self-center" style={{ borderRightColor: '#e5e7eb', borderTopColor: 'transparent' }}>
+              <div className="calendar-week-view__gutter bg-white border-r border-t-0 min-w-[80px] text-right pr-2 text-sm text-gray-600 font-medium relative flex items-start pt-0 h-[70px] self-center" style={{ borderRightColor: '#e5e7eb', borderTopColor: 'transparent' }}>
                 {isEarlyBoundary ? (
                   <HourBoundaryToggle
                     range="early"
@@ -275,7 +305,7 @@ export function WeekView({ date, events, todayPulse = 0, onEventClick, onTimeSlo
                     edge="top"
                   />
                 ) : hourValue === 22 ? null : (
-                  <div className="absolute top-0 right-2 transform -translate-y-1/2 bg-white px-1">
+                  <div className="calendar-hour-label absolute top-0 right-2 transform -translate-y-1/2 bg-white px-1">
                     {hour.toLocaleTimeString('en-US', HOUR_LABEL_FORMAT)}
                   </div>
                 )}

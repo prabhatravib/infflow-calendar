@@ -50,6 +50,14 @@ export function EchoTab({ event, onBackToDetails, onEchoReset }: EchoTabProps) {
           await mermaid.run({
             nodes: [mermaidDiv],
           });
+
+          // Mermaid fits the chart to its container, capped at its natural
+          // width. A phone draws it at that natural width and scrolls it
+          // sideways instead (index.css), so hand the number to CSS.
+          const naturalWidth = mermaidDiv.querySelector('svg')?.style.maxWidth;
+          if (naturalWidth) {
+            mermaidContainerRef.current?.style.setProperty('--echo-flowchart-width', naturalWidth);
+          }
         }
       } catch (error) {
         console.error('Error rendering flowchart:', error);
@@ -133,17 +141,17 @@ export function EchoTab({ event, onBackToDetails, onEchoReset }: EchoTabProps) {
   };
 
   return (
-    <div className="px-4 py-2">
+    <div className="echo-tab px-4 py-2">
       <div className="mb-4">
-        
+
       </div>
-      
-      <div className="bg-gray-50 rounded-lg p-4 mb-4 min-h-[300px] flex items-center justify-center">
+
+      <div className="echo-tab__canvas bg-gray-50 rounded-lg p-4 mb-4 min-h-[300px] flex items-center justify-center">
         {flowchart ? (
           <div className="w-full overflow-x-auto">
-            <div 
+            <div
               ref={mermaidContainerRef}
-              className="mermaid flex justify-center"
+              className="echo-tab__flowchart mermaid flex justify-center"
               style={{ minHeight: '200px' }}
             >
               {/* Content will be set by useEffect */}
@@ -169,7 +177,7 @@ export function EchoTab({ event, onBackToDetails, onEchoReset }: EchoTabProps) {
         )}
       </div>
       
-      <div className="flex justify-center space-x-3">
+      <div className="echo-tab__actions flex justify-center space-x-3">
         <button
           type="button"
           onClick={onBackToDetails}

@@ -4,6 +4,7 @@ import { captureHexaConsoleEntry } from '../utils/console-log-capture';
 import type { Event } from '../lib/api';
 import type { View } from '../lib/date';
 import { getCalendarWeatherContext, type CalendarWeatherContext } from '../lib/calendarWeatherContext';
+import { useIsMobile } from '../lib/hooks/useViewport';
 
 interface CalendarData {
   events: Event[];
@@ -16,6 +17,12 @@ interface CalendarData {
 interface HexaWorkerProps {
   calendarData: CalendarData;
   hexaWorkerUrl?: string;
+  /**
+   * Phone only: whether the voice sheet is showing. A closed sheet is hidden by
+   * CSS and stays mounted, so the iframe and its session carry on underneath.
+   */
+  isSheetOpen?: boolean;
+  onSheetClose?: () => void;
 }
 
 /**
@@ -89,10 +96,14 @@ function formatCalendarSummary(calendarData: CalendarData, weatherContext: Calen
   return summary;
 }
 
-export const HexaWorker: React.FC<HexaWorkerProps> = ({ 
+export const HexaWorker: React.FC<HexaWorkerProps> = ({
   calendarData,
-  hexaWorkerUrl = 'https://hexa-worker-v2.prabhatravib.workers.dev'
+  hexaWorkerUrl = 'https://hexa-worker-v2.prabhatravib.workers.dev',
+  isSheetOpen = false,
+  onSheetClose
 }) => {
+  // Only the phone presents the pane as a dialog; the element is the same one.
+  const isMobile = useIsMobile();
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -303,7 +314,14 @@ export const HexaWorker: React.FC<HexaWorkerProps> = ({
     : `Details of ${eventLabel} loaded`;
 
   return (
-    <section className="calendar-voice-panel" aria-label="Voice Panel">
+    <section
+      id="calendar-voice-panel"
+      className="calendar-voice-panel"
+      aria-label="Voice Panel"
+      data-sheet-open={isSheetOpen ? '' : undefined}
+      role={isMobile ? 'dialog' : undefined}
+      aria-modal={isMobile ? true : undefined}
+    >
       <div className="calendar-voice-panel__header">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-gray-900">Voice Pane</h2>
@@ -311,19 +329,35 @@ export const HexaWorker: React.FC<HexaWorkerProps> = ({
             {isLoading ? 'Syncing calendar...' : loadedSummary}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleResetConnection}
-          className="calendar-voice-panel__reset"
-          title="Reset voice connection"
-          aria-label="Reset voice connection"
-          disabled={!sessionId}
-        >
-          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-            <path d="M3 3v5h5" />
-          </svg>
-        </button>
+        <div className="calendar-voice-panel__actions">
+          <button
+            type="button"
+            onClick={handleResetConnection}
+            className="calendar-voice-panel__reset"
+            title="Reset voice connection"
+            aria-label="Reset voice connection"
+            disabled={!sessionId}
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+              <path d="M3 3v5h5" />
+            </svg>
+          </button>
+          {onSheetClose && (
+            <button
+              type="button"
+              onClick={onSheetClose}
+              className="calendar-voice-panel__close sheet-close"
+              title="Close voice pane"
+              aria-label="Close voice pane"
+              data-sheet-close
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
       <div className="calendar-voice-panel__body">
         {sessionId ? (

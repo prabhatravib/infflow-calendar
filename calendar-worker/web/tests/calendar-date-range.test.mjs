@@ -17,7 +17,9 @@ const { outputText } = ts.transpileModule(readFileSync(sourceUrl, 'utf8'), {
 });
 const dateModule = {};
 new Function('require', 'exports', outputText)(createRequire(sourceUrl), dateModule);
-const { getCalendarDateRange, getNavigationDates, getWeekDays, getMonthDays, getWeekdayNames } = dateModule;
+const {
+  getCalendarDateRange, getNavigationDates, getWeekDays, getMonthDays, getWeekdayNames, formatCompactPeriodTitle,
+} = dateModule;
 
 function assertRange(date, view, firstDay, lastDay) {
   const { startDate, endDate } = getCalendarDateRange(date, view);
@@ -109,6 +111,17 @@ test('list is an agenda for the selected day, and its arrows step one day', () =
   assertRange(date, 'list', '2026-09-13', '2026-09-13');
   assertRange(getNavigationDates(date, 'list').next, 'list', '2026-09-14', '2026-09-14');
   assertRange(getNavigationDates(date, 'list').prev, 'list', '2026-09-12', '2026-09-12');
+});
+
+test('compact period titles name the same period as the rendered range', () => {
+  const now = new Date('2026-09-12T12:00:00');
+  assert.equal(formatCompactPeriodTitle(new Date('2026-09-10T10:00:00'), 'week', now), 'Sep 7 – 13');
+  // A Sunday belongs to the week that started the Monday before.
+  assert.equal(formatCompactPeriodTitle(new Date('2026-09-13T21:45:00'), 'week', now), 'Sep 7 – 13');
+  assert.equal(formatCompactPeriodTitle(new Date('2026-09-02T10:00:00'), 'week', now), 'Aug 31 – Sep 6');
+  assert.equal(formatCompactPeriodTitle(new Date('2026-09-10T10:00:00'), 'month', now), 'September 2026');
+  assert.equal(formatCompactPeriodTitle(new Date('2026-09-10T10:00:00'), 'day', now), 'Thu, Sep 10');
+  assert.equal(formatCompactPeriodTitle(new Date('2027-01-01T10:00:00'), 'list', now), 'Fri, Jan 1, 2027');
 });
 
 test('calculating ranges does not mutate the selected date', () => {

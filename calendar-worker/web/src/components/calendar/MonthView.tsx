@@ -1,6 +1,8 @@
 
-import { isSameDay, isToday, getMonthDays, getWeekdayNames, formatDate } from '../../lib/date';
+import { useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { isSameDay, isToday, getMonthDays, getWeekdayNames, formatDate, formatTime } from '../../lib/date';
 import { useWeatherEvents } from '../../lib/hooks/useWeatherEvents';
+import { useIsMobile } from '../../lib/hooks/useViewport';
 import { useTodayPulse } from './useTodayPulse';
 import type { Event } from '../../lib/api';
 
@@ -37,6 +39,15 @@ function weekRowHeight(busiestDay: number): number {
   return Math.min(Math.max(wanted, WEEK_ROW_MIN_PX), WEEK_ROW_MAX_PX);
 }
 
+/** A phone cell shows one dot per event up to this many, then "+N". */
+const MAX_VISIBLE_DOTS = 3;
+
+const DOT_COLOR_BY_TYPE: Record<string, string> = {
+  work: 'bg-blue-500',
+  fun: 'bg-pink-500',
+  other: 'bg-green-500',
+};
+
 interface MonthViewProps {
   date: Date;
   events: Event[];
@@ -62,26 +73,26 @@ export function MonthView({ date, events, todayPulse = 0, onEventClick, onDateCl
       .filter(weatherEvent => weatherEvent?.start)
       .map(weatherEvent => [weatherEvent.start, weatherEvent.title as string])
   );
-  
+
   const monthDays = getMonthDays(date);
   const weekdays = getWeekdayNames(1);
-  
+
   const getEventsForDate = (day: Date) => {
     if (!Array.isArray(safeEvents)) {
       return [];
     }
-    
+
     return safeEvents.filter(event => {
       if (!event || !event.start) {
         return false;
       }
-      
+
       try {
         const eventDate = new Date(event.start);
         if (isNaN(eventDate.getTime())) {
           return false;
         }
-        
+
         return isSameDay(eventDate, day);
       } catch (error) {
         console.error('Error processing event:', event, error);
@@ -100,7 +111,7 @@ export function MonthView({ date, events, todayPulse = 0, onEventClick, onDateCl
   // Get event type styling based on eventType
   const getEventTypeStyling = (event: Event) => {
     const eventType = event.eventType?.toLowerCase() || 'other';
-    
+
     switch (eventType) {
       case 'fun':
         return 'bg-pink-100 text-pink-800 hover:bg-pink-200';
@@ -112,12 +123,38 @@ export function MonthView({ date, events, todayPulse = 0, onEventClick, onDateCl
     }
   };
 
+  // A phone cell is ~48px wide: too narrow for chips, so it shows dots and a
+  // tap picks the day for the agenda under the grid, whose New event button
+  // opens the same prefilled form a desktop tap does.
+  const isMobile = useIsMobile();
+  const monthKey = formatDate(date, 'yyyy-MM');
+  // A pick belongs to one month and one Today press, so a new month or a Today
+  // click falls back to the default day instead of keeping a stale pick.
+  const [pickedDay, setPickedDay] = useState<{ month: string; pulse: number; day: string } | null>(null);
+  const pickedKey = pickedDay?.month === monthKey && pickedDay.pulse === todayPulse ? pickedDay.day : null;
+  const isInMonth = (day: Date) => day.getMonth() === date.getMonth();
+  const selected =
+    daysWithEvents.find(({ day }) => formatDate(day, 'yyyy-MM-dd') === pickedKey) ??
+    daysWithEvents.find(({ day }) => isToday(day) && isInMonth(day)) ??
+    daysWithEvents.find(({ day }) => isInMonth(day));
+  const selectedBadWeather = selected && badWeatherByDate.get(formatDate(selected.day, 'yyyy-MM-dd'));
+
+  const pickDay = (day: Date) => {
+    setPickedDay({ month: monthKey, pulse: todayPulse, day: formatDate(day, 'yyyy-MM-dd') });
+  };
+
+  const handleCellKeyDown = (event: KeyboardEvent<HTMLDivElement>, day: Date) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    pickDay(day);
+  };
+
   return (
     <div className={`calendar-month-view ${className}`}>
       {/* Weekday headers and calendar grid combined to eliminate any gap */}
       <div
         className="grid grid-cols-7"
-        style={{ gridTemplateRows: `max-content ${weekRows.join(' ')}` }}
+        style={{ '--month-week-rows': weekRows.join(' ') } as CSSProperties}
       >
         {/* Weekday headers */}
         {weekdays.map((day, index) => (
@@ -125,12 +162,13 @@ export function MonthView({ date, events, todayPulse = 0, onEventClick, onDateCl
             {day}
           </div>
         ))}
-        
+
         {/* Calendar days - directly connected to headers with no gap */}
         {daysWithEvents.map(({ day, dayEvents }, index) => {
           const isCurrentDay = isToday(day);
           const isCurrentMonth = day.getMonth() === date.getMonth();
           const badWeather = badWeatherByDate.get(formatDate(day, 'yyyy-MM-dd'));
+          const isSelected = isMobile && selected?.day === day;
 
           // The bad-weather tint rides on a plain class, not a Tailwind bg-*
           // utility: index.css hard-sets `background: white` on every
@@ -150,10 +188,18 @@ export function MonthView({ date, events, todayPulse = 0, onEventClick, onDateCl
                 ${!isCurrentMonth ? 'text-gray-400' : ''}
                 ${isCurrentDay ? 'border-2 border-blue-300' : ''}
                 ${isCurrentDay && todayPulseRun ? `today-pulse-cell ${todayPulseRun}` : ''}
+                ${isSelected ? 'calendar-month-cell--selected' : ''}
               `}
               style={{ minHeight: '32px' }}
               title={badWeather || undefined}
-              onClick={() => onDateClick?.(day)}
+              onClick={() => (isMobile ? pickDay(day) : onDateClick?.(day))}
+              role={isMobile ? 'button' : undefined}
+              tabIndex={isMobile ? 0 : undefined}
+              aria-pressed={isMobile ? isSelected : undefined}
+              aria-label={isMobile
+                ? `${formatDate(day, 'EEEE, MMMM d')}: ${dayEvents.length} ${dayEvents.length === 1 ? 'event' : 'events'}${badWeather ? `, ${badWeather}` : ''}`
+                : undefined}
+              onKeyDown={isMobile ? event => handleCellKeyDown(event, day) : undefined}
             >
               {/* Date number - positioned at top-left with minimal spacing */}
               <div className={`
@@ -163,10 +209,10 @@ export function MonthView({ date, events, todayPulse = 0, onEventClick, onDateCl
               `}>
                 {day.getDate()}
               </div>
-              
+
               {/* Show up to three events, followed by the remaining count. */}
               {dayEvents.length > 0 && (
-                <div className="mt-1">
+                <div className="calendar-month-cell__chips mt-1">
                   {dayEvents.slice(0, MAX_VISIBLE_EVENTS).map((event) => (
                     <div
                       key={event.id}
@@ -186,10 +232,70 @@ export function MonthView({ date, events, todayPulse = 0, onEventClick, onDateCl
                   )}
                 </div>
               )}
+
+              {/* The phone's stand-in for the chips: a dot per event. */}
+              {dayEvents.length > 0 && (
+                <div className="calendar-month-cell__dots" aria-hidden="true">
+                  {dayEvents.slice(0, MAX_VISIBLE_DOTS).map(event => (
+                    <span
+                      key={event.id}
+                      className={`calendar-month-cell__dot ${DOT_COLOR_BY_TYPE[event.eventType?.toLowerCase() || 'other'] ?? DOT_COLOR_BY_TYPE.other}`}
+                    />
+                  ))}
+                  {dayEvents.length > MAX_VISIBLE_DOTS && (
+                    <span className="calendar-month-cell__more">+{dayEvents.length - MAX_VISIBLE_DOTS}</span>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
       </div>
+
+      {isMobile && selected && (
+        <section
+          className="calendar-month-agenda"
+          aria-label={`Events on ${formatDate(selected.day, 'EEEE, MMMM d')}`}
+        >
+          <div className="calendar-month-agenda__header">
+            <h3 className="calendar-month-agenda__title">{formatDate(selected.day, 'EEEE, MMM d')}</h3>
+            <button
+              type="button"
+              className="calendar-month-agenda__add"
+              onClick={() => onDateClick?.(selected.day)}
+            >
+              New event
+            </button>
+          </div>
+
+          {selectedBadWeather && (
+            <p className="calendar-month-agenda__weather">{selectedBadWeather}</p>
+          )}
+
+          {selected.dayEvents.length === 0 ? (
+            <p className="calendar-month-agenda__empty">No events</p>
+          ) : (
+            <ul className="calendar-month-agenda__list">
+              {[...selected.dayEvents]
+                .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
+                .map(event => (
+                  <li key={event.id}>
+                    <button
+                      type="button"
+                      className={`calendar-month-agenda__event ${getEventTypeStyling(event)}`}
+                      onClick={() => onEventClick?.(event)}
+                    >
+                      <span className="calendar-month-agenda__time">
+                        {event.all_day ? 'All day' : formatTime(new Date(event.start), 'h:mm a')}
+                      </span>
+                      <span className="calendar-month-agenda__event-title">{event.title}</span>
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          )}
+        </section>
+      )}
     </div>
   );
 }

@@ -206,11 +206,10 @@ export function DayView({ date, events, onEventClick, onTimeSlotClick }: DayView
         );
       })()}
 
-      {/* Time grid uses the same hour sizing and separators as Week view */}
-      <div
-        className="grid relative"
-        style={{ gridTemplateColumns: '80px minmax(0, 1fr)', gap: '0px' }}
-      >
+      {/* Time grid uses the same hour sizing and separators as Week view. Its
+          columns come from index.css, not an inline style, so the phone
+          layout can narrow the gutter. */}
+      <div className="grid relative">
         {/* Render each hour as a single row spanning both columns */}
         {Array.isArray(hours) && hours.map((hour, hourIndex) => {
           if (!hour || !(hour instanceof Date) || isNaN(hour.getTime())) {
@@ -240,7 +239,7 @@ export function DayView({ date, events, onEventClick, onTimeSlotClick }: DayView
             <Fragment key={hourValue}>
               {/* Timeline column - hour label - NO horizontal lines, just the time */}
               <div
-                className={`bg-white border-r border-t-0 min-w-[80px] text-right p-1 text-sm text-gray-600 font-medium relative flex items-start h-[70px] self-center ${
+                className={`calendar-day-view__gutter bg-white border-r border-t-0 min-w-[80px] text-right p-1 text-sm text-gray-600 font-medium relative flex items-start h-[70px] self-center ${
                   isEarly ? 'time-slot-early-hours' : ''
                 } ${
                   isLate ? 'time-slot-late-hours' : ''
@@ -256,7 +255,7 @@ export function DayView({ date, events, onEventClick, onTimeSlotClick }: DayView
                     edge="top"
                   />
                 ) : hourValue === 22 ? null : (
-                  <div className="absolute top-0 right-2 transform -translate-y-1/2 bg-white px-1">
+                  <div className="calendar-hour-label absolute top-0 right-2 transform -translate-y-1/2 bg-white px-1">
                     {hour.toLocaleTimeString('en-US', HOUR_LABEL_FORMAT)}
                   </div>
                 )}

@@ -108,8 +108,8 @@
   }
 }
 
-/* Responsive adjustments */
-@media (max-width: 768px) {
+/* Responsive adjustments (the app's one breakpoint; see src/lib/hooks/useViewport.ts) */
+@media (max-width: 767px) {
   .minute-indicator-minute {
     font-size: 11px;
     padding: 1px 3px;

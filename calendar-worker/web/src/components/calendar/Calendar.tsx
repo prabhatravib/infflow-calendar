@@ -3,9 +3,10 @@ import { WeekView } from './WeekView';
 import { MonthView } from './MonthView';
 import { DayView } from './DayView';
 import { ListView } from './ListView';
+import { MobileCalendarToolbar } from './MobileCalendarToolbar';
 import { useTodayPulse } from './useTodayPulse';
 import type { Event } from '../../lib/api';
-import { getCalendarDateRange, getNavigationDates, type View } from '../../lib/date';
+import { formatCompactPeriodTitle, getCalendarDateRange, getNavigationDates, type View } from '../../lib/date';
 
 interface CalendarProps {
   events: Event[];
@@ -59,6 +60,13 @@ export function Calendar({
   const headingPulseClass = headingPulseRun && (currentView === 'day' || currentView === 'list')
     ? `today-pulse-text ${headingPulseRun}`
     : '';
+
+  // The heading names the displayed period; the phone toolbar shows it shorter.
+  const periodTitle = currentView === 'month'
+    ? currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+    : currentView === 'week'
+      ? `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+      : currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
   const handleViewChange = (view: View) => {
     // Don't set internal state - let parent handle it
@@ -142,8 +150,8 @@ export function Calendar({
   return (
     <div className={`calendar ${className}`}>
       {/* Header */}
-      <div className="bg-white border-b border-gray-100 p-4">
-        <div className="flex items-center justify-between">
+      <div className="calendar-toolbar bg-white border-b border-gray-100 p-4">
+        <div className="calendar-toolbar__row flex items-center justify-between">
           {/* Left side - View selector */}
           <div className="flex items-center space-x-2">
             <button
@@ -202,9 +210,7 @@ export function Calendar({
             
             <div className="relative min-w-[11rem] text-center">
               <h2 className={`text-lg font-semibold text-gray-900 ${headingPulseClass}`}>
-                {currentView === 'month' && currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                {currentView === 'week' && `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
-                {(currentView === 'day' || currentView === 'list') && currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                {periodTitle}
               </h2>
               <span role="status" className="absolute inset-x-0 top-full text-xs text-blue-600">
                 {isLoading ? 'Loading events...' : ''}
@@ -234,10 +240,21 @@ export function Calendar({
         </div>
       </div>
 
+      <MobileCalendarToolbar
+        view={currentView}
+        compactTitle={formatCompactPeriodTitle(currentDate, currentView)}
+        fullTitle={periodTitle}
+        isLoading={isLoading}
+        headingPulseClass={headingPulseClass}
+        onStep={handleDateChange}
+        onToday={handleToday}
+        onViewChange={handleViewChange}
+      />
+
       {/* Main Content */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="calendar__body flex flex-1 overflow-hidden">
         {/* Calendar view */}
-        <div className="flex-1 overflow-auto" aria-busy={isLoading}>
+        <div className="calendar__viewport flex-1 overflow-auto" aria-busy={isLoading}>
           {renderView()}
         </div>
       </div>

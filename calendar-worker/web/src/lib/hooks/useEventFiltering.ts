@@ -31,7 +31,9 @@ export function useEventFiltering(events: Event[]) {
   }, [events, filters]);
 
   const updateFilter = (filterType: keyof EventFilters, value: boolean) => {
-    setFilters(prev => ({
+    // Sidebar re-sends every filter after each App render, so an unchanged
+    // value must keep the same object; a fresh copy re-rendered App and looped.
+    setFilters(prev => (prev[filterType] === value ? prev : {
       ...prev,
       [filterType]: value
     }));

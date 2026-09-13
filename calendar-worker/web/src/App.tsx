@@ -4,8 +4,10 @@ import { EventModal } from './components/calendar/EventModal';
 import { Sidebar, EventFilters } from './components/calendar/Sidebar';
 import { HexaWorker } from './components/HexaWorker';
 import { DownloadLogsButton } from './components/DownloadLogsButton';
+import { MobileAppBar, type MobileSurface } from './components/MobileAppBar';
 import { LocationProvider, useLocation } from './lib/contexts/LocationContext';
 import { useEventFiltering } from './lib/hooks/useEventFiltering';
+import { useKeyboardInset } from './lib/hooks/useViewport';
 import { fetchEvents, createEvent, updateEvent, deleteEvent } from './lib/api';
 import { weatherService } from './lib/services/weatherService';
 import type { Event } from './lib/api';
@@ -49,6 +51,13 @@ function AppContent() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [displayedPeriod, setDisplayedPeriod] = useState<{ date: Date; view: View } | null>(null);
   const [weatherData, setWeatherData] = useState<any>(null);
+  // The phone sheet open over the calendar, if any. Desktop draws no sheets,
+  // so at 768px and up this state has nothing to show (see index.css).
+  const [mobileSurface, setMobileSurface] = useState<MobileSurface | null>(null);
+  const closeMobileSurface = useCallback(() => setMobileSurface(null), []);
+
+  // Lifts the phone sheets clear of the software keyboard; inert on desktop.
+  useKeyboardInset();
 
   // Get location from context
   const { location } = useLocation();
@@ -152,6 +161,26 @@ function AppContent() {
     };
   }, [gotoDateWithTitle]);
 
+  // An open phone sheet takes focus, closes on Escape, and gives focus back to
+  // whatever opened it when it closes.
+  useEffect(() => {
+    if (!mobileSurface) return;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const sheetId = mobileSurface === 'settings' ? 'calendar-settings' : 'calendar-voice-panel';
+    document.getElementById(sheetId)
+      ?.querySelector<HTMLElement>('[data-sheet-close]')
+      ?.focus({ preventScroll: true });
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMobileSurface(null);
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      opener?.focus({ preventScroll: true });
+    };
+  }, [mobileSurface]);
+
   const handleEventClick = (event: Event) => {
     setSelectedEvent(event);
     setIsModalOpen(true);
@@ -223,10 +252,22 @@ function AppContent() {
   const filterStats = getFilterStats();
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="flex">
-        {/* Left Sidebar */}
-        <Sidebar onFilterChange={handleFilterChange}>
+    <div className="app-shell min-h-screen bg-gray-50">
+      <MobileAppBar
+        eventCounts={displayedPeriod ? filterStats : null}
+        openSurface={mobileSurface}
+        onOpenSurface={setMobileSurface}
+      />
+      <div className="app-layout flex">
+        {/* Left Sidebar. On a phone its sections are the two sheets the app bar
+            opens, placed by CSS alone: nothing here changes parent between
+            layouts, so the voice iframe is never re-parented or reloaded. */}
+        <Sidebar
+          onFilterChange={handleFilterChange}
+          isSheetOpen={mobileSurface === 'settings'}
+          onSheetClose={closeMobileSurface}
+          sheetFooter={<DownloadLogsButton />}
+        >
           <HexaWorker
             calendarData={{
               events: safeEvents,
@@ -235,14 +276,16 @@ function AppContent() {
               currentView: displayedPeriod?.view ?? currentView,
               currentDate: displayedPeriod?.date ?? currentDate,
             }}
+            isSheetOpen={mobileSurface === 'voice'}
+            onSheetClose={closeMobileSurface}
           />
-          <DownloadLogsButton className="mt-4 self-start" />
+          <DownloadLogsButton className="mt-4 self-start calendar-desktop-only" />
         </Sidebar>
-        
+
         {/* Main Content Area. min-w-0 so the calendar's day-column floor makes
             the grid scroll inside its card instead of widening the page. */}
-        <div className="flex-1 min-w-0 p-6">
-          <div className="mb-6 flex flex-wrap items-baseline gap-4">
+        <div className="app-main flex-1 min-w-0 p-6">
+          <div className="app-heading mb-6 flex flex-wrap items-baseline gap-4">
             <h1 className="text-3xl font-bold text-gray-800">Calendar</h1>
             {displayedPeriod && (
               <div className="text-sm text-gray-600">
@@ -279,6 +322,11 @@ function AppContent() {
         </div>
       </div>
       
+      {/* Unmounted while no sheet is open, so it can never catch a tap. */}
+      {mobileSurface && (
+        <div className="mobile-scrim" onClick={closeMobileSurface} aria-hidden="true" />
+      )}
+
       <EventModal
         isOpen={isModalOpen}
         onClose={() => {

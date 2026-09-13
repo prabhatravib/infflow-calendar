@@ -53,7 +53,7 @@ export function EventForm({
   localEvent
 }: EventFormProps) {
   return (
-    <form onSubmit={onSubmit} className="px-4 py-2">
+    <form onSubmit={onSubmit} className="event-form px-4 py-2">
       <div className="space-y-2">
         {/* Title */}
         <div>
@@ -179,8 +179,8 @@ export function EventForm({
       </div>
       
       {/* Actions */}
-      <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
-        <div className="flex space-x-2">
+      <div className="event-form__actions flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
+        <div className="event-form__secondary flex space-x-2">
           {localEvent && onDelete && (
             <button
               type="button"
@@ -204,7 +204,7 @@ export function EventForm({
           )}
         </div>
         
-        <div className="flex space-x-2">
+        <div className="event-form__primary flex space-x-2">
           <button
             type="button"
             onClick={onCancel}

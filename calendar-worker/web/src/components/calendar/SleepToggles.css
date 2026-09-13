@@ -140,8 +140,8 @@
   }
 }
 
-/* Responsive adjustments */
-@media (max-width: 768px) {
+/* Responsive adjustments (the app's one breakpoint; see src/lib/hooks/useViewport.ts) */
+@media (max-width: 767px) {
   .sleep-toggle-bar {
     height: 28px !important;
     font-size: 12px !important;
@@ -299,4 +299,14 @@
   height: 1px;
   background: #d1d5db;
   pointer-events: none;
+}
+
+/* Phone: the pill keeps its 22px look, but a thumb gets the full 44px target
+   around it. The extra area overhangs the hour cells on purpose. */
+@media (max-width: 767px) {
+  .hour-boundary-pill::after {
+    content: '';
+    position: absolute;
+    inset: -11px -4px;
+  }
 }

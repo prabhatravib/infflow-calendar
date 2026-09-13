@@ -209,12 +209,12 @@ export function EventModal({
   return (
     <ErrorBoundary>
       <div
-        className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+        className="event-modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
         onMouseDown={handleBackdropMouseDown}
         onClick={handleBackdropClick}
       >
-        <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4">
-          <div className="px-4 py-2 border-b border-gray-100">
+        <div className="event-modal__panel bg-white rounded-lg shadow-xl max-w-lg w-full mx-4">
+          <div className="event-modal__header px-4 py-2 border-b border-gray-100">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">
                 {event ? 'Edit Event' : 'New Event'}
@@ -222,7 +222,7 @@ export function EventModal({
               <button
                 type="button"
                 onClick={handleClose}
-                className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-full hover:bg-gray-100"
+                className="event-modal__close text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-full hover:bg-gray-100"
                 aria-label="Close modal"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -233,10 +233,10 @@ export function EventModal({
           </div>
           
           {/* Tab Navigation */}
-          <div className="border-b border-gray-100">
+          <div className="event-modal__tabs border-b border-gray-100">
             <div className="flex">
               <button
-                className={`px-4 py-1.5 text-sm font-medium border-b-2 ${
+                className={`event-modal__tab px-4 py-1.5 text-sm font-medium border-b-2 ${
                   activeTab === 'details' 
                     ? 'border-blue-500 text-blue-600' 
                     : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -246,7 +246,7 @@ export function EventModal({
                 Details
               </button>
               <button
-                className={`px-4 py-1.5 text-sm font-medium border-b-2 flex items-center space-x-1 ${
+                className={`event-modal__tab px-4 py-1.5 text-sm font-medium border-b-2 flex items-center space-x-1 ${
                   activeTab === 'echo' 
                     ? 'border-blue-500 text-blue-600' 
                     : 'border-transparent text-gray-500 hover:text-gray-700'

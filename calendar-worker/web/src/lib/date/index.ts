@@ -293,6 +293,24 @@ export function getNavigationDates(currentDate: Date, view: View) {
   }
 }
 
+/**
+ * The period heading in its shortest unambiguous form, for the phone toolbar:
+ * "Sep 7 – 13", "Aug 31 – Sep 6", "September 2026", "Thu, Sep 10". A single
+ * day outside `now`'s year keeps its year. Desktop keeps its longer headings.
+ */
+export function formatCompactPeriodTitle(date: Date, view: View, now: Date = new Date()): string {
+  if (view === 'month') {
+    return format(date, 'MMMM yyyy');
+  }
+  if (view === 'week') {
+    const { startDate, endDate } = getCalendarDateRange(date, view);
+    return isSameMonth(startDate, endDate)
+      ? `${format(startDate, 'MMM d')} – ${format(endDate, 'd')}`
+      : `${format(startDate, 'MMM d')} – ${format(endDate, 'MMM d')}`;
+  }
+  return format(date, date.getFullYear() === now.getFullYear() ? 'EEE, MMM d' : 'EEE, MMM d, yyyy');
+}
+
 export function isCurrentPeriod(date: Date, view: View, currentDate: Date) {
   try {
     // Validate input dates

@@ -107,7 +107,7 @@ export function ListView({ date, events, onEventClick, className = '' }: ListVie
   return (
     <div className={`calendar-list-view ${className}`}>
       {/* Filters */}
-      <div className="bg-white border-b border-gray-100 p-4">
+      <div className="calendar-list-view__filters bg-white border-b border-gray-100 p-4">
         <div className="flex flex-wrap items-center gap-4">
           <span className="text-sm font-medium text-gray-700">Event Types:</span>
 
@@ -143,7 +143,7 @@ export function ListView({ date, events, onEventClick, className = '' }: ListVie
 
           {badWeather && (
             <span
-              className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-red-300 bg-red-100 px-2.5 py-1 text-xs font-medium text-red-800"
+              className="calendar-list-view__weather ml-auto inline-flex items-center gap-1.5 rounded-full border border-red-300 bg-red-100 px-2.5 py-1 text-xs font-medium text-red-800"
               title={`Bad weather on ${formatDate(selectedDay, 'MMM dd, yyyy')}: ${badWeather.reason}`}
             >
               <span aria-hidden="true">&#9928;&#65039;</span>
@@ -172,7 +172,7 @@ export function ListView({ date, events, onEventClick, className = '' }: ListVie
                   }`}
                   onClick={() => onEventClick?.(event)}
                 >
-                  <div className="flex items-start justify-between">
+                  <div className="calendar-list-view__row flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
                         <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getEventTypeColor(event)}`}>
@@ -195,7 +195,7 @@ export function ListView({ date, events, onEventClick, className = '' }: ListVie
                         </p>
                       )}
 
-                      <div className="flex items-center gap-4 text-sm text-gray-500">
+                      <div className="calendar-list-view__meta flex items-center gap-4 text-sm text-gray-500">
                         <div className="flex items-center gap-1">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
