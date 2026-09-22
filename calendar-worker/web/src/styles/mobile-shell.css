@@ -1,0 +1,497 @@
+/* ==================================================================
+   MOBILE - SHELL (max-width: 767px)
+   ==================================================================
+   The phone presentation of the same application. App owns every piece
+   of state for both layouts; the two mobile partials only change how it
+   is drawn:
+
+   - The page itself does not scroll. The app bar, the toolbar and the
+     current view fill the dynamic viewport, and the view is the one
+     scroller, so there is never a scroll area inside a scrolling page.
+   - The sidebar stops being a column. Its profile, filters and weather
+     become a bottom sheet and the voice pane becomes a second sheet, both
+     opened from the app bar. Both move by CSS alone: no element changes
+     parent, so the Hexa iframe cannot reload on open, close or rotation.
+
+   This file holds the chrome: the app bar, the shell's fixed layout, the
+   two sheets and their scrim, and the phone toolbar. What sits inside
+   that chrome - the four views and the event sheet - is in
+   mobile-views.css, which must be imported after this file.
+
+   Must be imported after desktop.css, whose rules these override at
+   equal specificity.
+   ================================================================== */
+
+/* Phone-only pieces take no part in the desktop layout. */
+.mobile-app-bar,
+.calendar-mobile-toolbar,
+.mobile-scrim,
+.calendar-month-agenda,
+.calendar-month-cell__dots {
+  display: none;
+}
+
+@keyframes mobile-scrim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (max-width: 767px) {
+  /* --- Shell ------------------------------------------------------- */
+
+  .app-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .mobile-app-bar {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: var(--cal-gap);
+    min-height: calc(var(--cal-app-bar-height) + var(--cal-safe-top));
+    padding: var(--cal-safe-top) calc(var(--cal-inset) - 6px + var(--cal-safe-right)) 0
+      calc(var(--cal-inset) + var(--cal-safe-left));
+    background: white;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .mobile-app-bar__wordmark {
+    flex-shrink: 0;
+    width: auto;
+    height: 22px;
+  }
+
+  .mobile-app-bar__title {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    margin-right: auto;
+    line-height: 1.2;
+  }
+
+  .mobile-app-bar__heading {
+    font-size: 16px;
+    font-weight: 700;
+    color: #1f2937;
+  }
+
+  .mobile-app-bar__count {
+    overflow: hidden;
+    font-size: 12px;
+    color: #4b5563;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .mobile-app-bar__action {
+    position: relative;
+    display: grid;
+    flex-shrink: 0;
+    place-items: center;
+    width: var(--cal-touch);
+    height: var(--cal-touch);
+    border-radius: 12px;
+    color: #374151;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mobile-app-bar__action:active,
+  .mobile-app-bar__action[aria-expanded='true'] {
+    background: #eff6ff;
+    color: #1d4ed8;
+  }
+
+  .mobile-app-bar__action:focus-visible,
+  .sheet-close:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: -2px;
+  }
+
+  .mobile-app-bar__badge {
+    position: absolute;
+    top: 5px;
+    right: 4px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: #2563eb;
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+  }
+
+  .app-layout {
+    display: block;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  /* No box of its own: its children are positioned individually below. */
+  .sidebar {
+    display: contents;
+  }
+
+  .calendar-desktop-only {
+    display: none;
+  }
+
+  .app-main {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    padding: var(--cal-gap) calc(var(--cal-inset) + var(--cal-safe-right))
+      calc(var(--cal-gap) + var(--cal-safe-bottom)) calc(var(--cal-inset) + var(--cal-safe-left));
+  }
+
+  /* The app bar carries the heading, count and wordmark on a phone. */
+  .app-heading {
+    display: none;
+  }
+
+  .app-main > * {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  /* --- Sheets ------------------------------------------------------ */
+
+  .mobile-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: rgba(15, 23, 42, 0.45);
+    animation: mobile-scrim-in 200ms ease-out;
+  }
+
+  /* Closed sheets are visibility: hidden, not just moved away: that takes
+     them out of hit testing, the tab order and the accessibility tree while
+     leaving everything inside mounted - the iframe included. */
+  .sidebar__drawer,
+  .calendar-voice-panel {
+    position: fixed;
+    z-index: 45;
+    left: 0;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    width: auto;
+    max-width: var(--cal-sheet-max-width);
+    margin: 0 auto;
+    background: white;
+    border-radius: var(--cal-sheet-radius) var(--cal-sheet-radius) 0 0;
+    box-shadow: 0 -12px 32px rgba(15, 23, 42, 0.2);
+    transform: translateY(100%);
+    visibility: hidden;
+    transition: transform 240ms cubic-bezier(0.2, 0, 0, 1), visibility 0s linear 240ms;
+  }
+
+  .sidebar__drawer[data-open],
+  .calendar-voice-panel[data-sheet-open] {
+    transform: none;
+    visibility: visible;
+    transition: transform 240ms cubic-bezier(0.2, 0, 0, 1), visibility 0s;
+  }
+
+  .sheet-close {
+    display: grid;
+    flex-shrink: 0;
+    place-items: center;
+    width: var(--cal-touch);
+    height: var(--cal-touch);
+    border-radius: 999px;
+    color: #4b5563;
+  }
+
+  .sheet-close:active {
+    background: #f3f4f6;
+  }
+
+  /* Filters & weather: sized to its content, lifted over the keyboard so the
+     city field stays in view while it is typed into. */
+  .sidebar__drawer {
+    bottom: var(--cal-keyboard-inset);
+    max-height: calc(var(--cal-viewport-height) - var(--cal-safe-top) - var(--cal-sheet-top-gap));
+  }
+
+  .sidebar__drawer-header {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--cal-gap);
+    padding: 6px calc(6px + var(--cal-safe-right)) 6px calc(16px + var(--cal-safe-left));
+    border-bottom: 1px solid #f3f4f6;
+  }
+
+  .sidebar__drawer-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #111827;
+  }
+
+  .sidebar__drawer-body {
+    display: block;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 16px calc(16px + var(--cal-safe-right)) calc(16px + var(--cal-safe-bottom))
+      calc(16px + var(--cal-safe-left));
+  }
+
+  .sidebar__drawer-footer {
+    display: block;
+    margin-top: 16px;
+  }
+
+  .sidebar__drawer .user-profile,
+  .sidebar__drawer .event-filters {
+    margin-bottom: 20px;
+  }
+
+  /* SleepToggles.css pins every .cursor-pointer to min-height 30px with
+     !important, so the touch target has to answer in kind. */
+  .sidebar__drawer .event-filters label {
+    min-height: var(--cal-touch) !important;
+  }
+
+  .sidebar__drawer .event-filters input[type='checkbox'] {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* 16px keeps iOS Safari from zooming the page when the field is focused. */
+  .weather-widget input {
+    min-height: var(--cal-touch);
+    font-size: 16px;
+  }
+
+  .weather-widget button,
+  .sidebar__drawer-footer button {
+    min-height: var(--cal-touch);
+  }
+
+  /* Voice: nearly full height, because Hexa needs the room for its hexagon
+     and transcript. No side borders, so the panel's container query sees a
+     360px phone as 360px wide and renders the iframe 1:1. */
+  .calendar-voice-panel {
+    top: calc(var(--cal-safe-top) + var(--cal-sheet-top-gap));
+    bottom: 0;
+    border: 0;
+    padding-bottom: var(--cal-safe-bottom);
+  }
+
+  .calendar-voice-panel__header {
+    flex-shrink: 0;
+    padding: 6px calc(6px + var(--cal-safe-right)) 6px calc(16px + var(--cal-safe-left));
+    background: white;
+  }
+
+  .calendar-voice-panel__reset {
+    width: var(--cal-touch);
+    height: var(--cal-touch);
+  }
+
+  .calendar-voice-panel__close {
+    display: grid;
+  }
+
+  .calendar-voice-panel__body {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
+  }
+}
+
+@keyframes calendar-loading-sweep {
+  from { background-position: -50% 0; }
+  to { background-position: 150% 0; }
+}
+
+@media (max-width: 767px) {
+  /* --- Toolbar ----------------------------------------------------- */
+
+  /* The desktop row is replaced rather than squeezed; see
+     MobileCalendarToolbar for the phone layout. */
+  .calendar-toolbar {
+    display: none;
+  }
+
+  .calendar {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .calendar-mobile-toolbar {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    gap: 6px;
+    padding-bottom: var(--cal-gap);
+  }
+
+  .calendar-mobile-toolbar__period {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .calendar-mobile-toolbar__step {
+    display: grid;
+    flex-shrink: 0;
+    place-items: center;
+    width: var(--cal-touch);
+    height: var(--cal-touch);
+    border-radius: 12px;
+    color: #4b5563;
+  }
+
+  .calendar-mobile-toolbar__step:active {
+    background: #e5e7eb;
+  }
+
+  .calendar-mobile-toolbar__title {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    font-size: 17px;
+    font-weight: 600;
+    color: #111827;
+    text-align: center;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .calendar-mobile-toolbar__today {
+    flex-shrink: 0;
+    min-height: var(--cal-touch);
+    margin-left: 6px;
+    padding: 0 14px;
+    border-radius: 12px;
+    background: #2563eb;
+    color: white;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .calendar-mobile-toolbar__today:active {
+    background: #1d4ed8;
+  }
+
+  .calendar-mobile-toolbar__views {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 2px;
+    padding: 2px;
+    border-radius: 12px;
+    background: #e5e7eb;
+  }
+
+  .calendar-mobile-toolbar__view {
+    min-height: var(--cal-touch);
+    border-radius: 10px;
+    color: #374151;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .calendar-mobile-toolbar__view[aria-pressed='true'] {
+    background: white;
+    color: #1d4ed8;
+    font-weight: 600;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+  }
+
+  .calendar-mobile-toolbar__step:focus-visible,
+  .calendar-mobile-toolbar__today:focus-visible,
+  .calendar-mobile-toolbar__view:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 1px;
+  }
+
+  /* A thin sweep under the toolbar while a period loads. The previous period
+     stays on screen meanwhile, exactly as on desktop. */
+  .calendar-mobile-toolbar[data-loading]::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 2px;
+    height: 2px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, transparent, #2563eb, transparent) no-repeat;
+    background-size: 50% 100%;
+    animation: calendar-loading-sweep 1s linear infinite;
+  }
+}
+
+/* --- Short phone screens (a phone on its side) ---------------------------
+   Under 560px of height the chrome has to give the grid its room back: a
+   slimmer app bar, and the period and the view switcher sharing one row.
+   The day headers that scroll away with them are in mobile-views.css. */
+@media (max-width: 767px) and (max-height: 560px) {
+  .mobile-app-bar {
+    min-height: calc(var(--cal-touch) + var(--cal-safe-top));
+  }
+
+  .mobile-app-bar__wordmark {
+    height: 18px;
+  }
+
+  .mobile-app-bar__title {
+    flex-direction: row;
+    align-items: baseline;
+    gap: var(--cal-gap);
+  }
+
+  .app-main {
+    padding-top: 4px;
+  }
+
+  .calendar-mobile-toolbar {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--cal-gap);
+    padding-bottom: 4px;
+  }
+
+  .calendar-mobile-toolbar__period {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .calendar-mobile-toolbar__views {
+    flex: 0 0 auto;
+    width: min(300px, 46%);
+  }
+}
+
+@media (max-width: 767px) and (prefers-reduced-motion: reduce) {
+  .sidebar__drawer,
+  .sidebar__drawer[data-open],
+  .calendar-voice-panel,
+  .calendar-voice-panel[data-sheet-open] {
+    transition: none;
+  }
+
+  .mobile-scrim {
+    animation: none;
+  }
+
+  .calendar-mobile-toolbar[data-loading]::after {
+    animation: none;
+    background: #93c5fd;
+  }
+}

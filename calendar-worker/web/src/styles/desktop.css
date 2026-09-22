@@ -1,0 +1,467 @@
+/* ==================================================================
+   DESKTOP
+   ==================================================================
+   The application as it is drawn before the phone section redraws it:
+   the calendar card and its grids, the weather chips, the sidebar, the
+   voice panel and the current-time line.
+
+   Must be imported after foundation.css (it reads the tokens) and
+   before both mobile partials: roughly thirty selectors here are
+   declared again there at identical specificity - a media query adds
+   none - so source order is the only thing that lets the phone rules
+   win.
+   ================================================================== */
+
+/* --- The calendar card and its grids ------------------------------ */
+
+/* Custom styles for the calendar application */
+.calendar {
+  /* Match the normal Week view: 16 hour rows, weekday/weather header and pills. */
+  --calendar-view-height: 1320px;
+  /* Narrowest a day column may get. Below this the grid scrolls sideways
+     rather than squeezing a cell down to a couple of characters. */
+  --calendar-day-min: 96px;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* One row wherever it fits. A narrow desktop column - a tablet, or a phone on
+   its side - wraps the toolbar rather than pushing the page sideways. */
+.calendar-toolbar__row {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+.calendar-month-view,
+.calendar-week-view,
+.calendar-day-view {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+/* Every day column is an equal share of the width, floored at
+   --calendar-day-min. The minmax() is the point: a bare `1fr` means
+   `minmax(auto, 1fr)`, so a column holding "Quarterly Review Meeting" or a
+   weather pill grew to fit that text and its neighbours collapsed around it -
+   42px next to 205px on a laptop. minmax(<floor>, 1fr) caps every track at its
+   share instead, and the chips inside truncate to fit. */
+.calendar-month-view .grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(var(--calendar-day-min), 1fr));
+  /* Week row heights are measured per month in MonthView and handed over as
+     a custom property rather than an inline style, so the phone layout can
+     replace them. */
+  grid-template-rows: max-content var(--month-week-rows, auto);
+  gap: 0px;
+  background-color: #f3f4f6;
+}
+
+.calendar-week-view .grid {
+  display: grid;
+  grid-template-columns: 80px repeat(7, minmax(var(--calendar-day-min), 1fr));
+  gap: 0px;
+  background-color: #f3f4f6;
+}
+
+.calendar-day-view .grid {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr);
+  gap: 0px;
+  background-color: #f3f4f6;
+}
+
+.calendar-day-view {
+  display: flex;
+  flex-direction: column;
+}
+
+.calendar-day-view > .all-day-events-section {
+  flex-shrink: 0;
+}
+
+.calendar-day-view > .grid {
+  /* Keep the same fixed hour spacing as Week view instead of stretching rows. */
+  flex: 0 0 auto;
+}
+
+/* Day Weather Component Styles */
+.day-weather {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  margin-top: 4px;
+}
+
+.day-weather .weather-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  text-align: center;
+  transition: all 0.2s ease;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.day-weather .weather-summary.bad-weather {
+  background-color: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.day-weather .weather-summary.good-weather {
+  background-color: #f9fafb;
+  color: #374151;
+  border: 1px solid #e5e7eb;
+}
+
+.day-weather .weather-icon {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.day-weather .weather-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.day-weather .weather-details {
+  font-size: 10px;
+  margin-top: 2px;
+  line-height: 1;
+}
+
+/* Weather Event Styles */
+.weather-event {
+  background-color: #ffb3b3 !important;
+  border-color: #ff8080 !important;
+  color: #d00000 !important;
+  font-size: 11px !important;
+  padding: 2px 4px !important;
+  margin: 1px 2px !important;
+  border-radius: 4px !important;
+  cursor: default !important;
+  opacity: 0.9;
+}
+
+.weather-event:hover {
+  opacity: 1;
+  transform: none !important;
+}
+
+/* All-day event container for weather */
+.all-day-events {
+  min-height: 40px; /* Increased from 24px to make it thicker */
+  padding: 4px 2px; /* Increased vertical padding */
+  border-bottom: 1px solid #e5e7eb;
+  background-color: #f9fafb;
+  /* Force fixed width and prevent horizontal expansion */
+  width: calc(100% - 4px); /* Account for padding */
+  max-width: calc(100% - 4px);
+  box-sizing: border-box;
+  overflow: hidden;
+  word-wrap: break-word;
+  white-space: normal;
+}
+
+/* All-day events section for Day view */
+.all-day-events-section {
+  min-height: 60px; /* Make it thick enough for weather info */
+  padding: 8px;
+  background-color: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  /* Force fixed width and prevent horizontal expansion */
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  word-wrap: break-word;
+  white-space: normal;
+}
+
+/* Force weather event text to wrap within container */
+.weather-event {
+  background-color: #ffb3b3 !important;
+  border-color: #ff8080 !important;
+  color: #d00000 !important;
+  font-size: 11px !important;
+  padding: 2px 4px !important;
+  margin: 1px 2px !important;
+  border-radius: 4px !important;
+  cursor: default !important;
+  opacity: 0.9;
+  /* Force text wrapping */
+  word-wrap: break-word;
+  white-space: normal;
+  overflow-wrap: break-word;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Responsive adjustments */
+/* The phone layouts of the grids themselves are in the MOBILE section at the
+   end of this file. */
+@media (max-width: 767px) {
+  .day-weather {
+    min-height: 32px;
+  }
+  
+  .day-weather .weather-summary {
+    padding: 2px 6px;
+    font-size: 10px;
+  }
+  
+  .day-weather .weather-icon {
+    font-size: 10px;
+  }
+}
+
+.calendar-month-view .grid > div {
+  background: white;
+  min-height: 32px;
+  padding: 8px;
+}
+
+/* The rule above outranks every Tailwind bg-* utility on a day cell, so the
+   bad-weather tint has to be matched at the same specificity to land. */
+.calendar-month-view .grid > div.day-bad-weather {
+  background: #fee9e9;
+}
+
+.calendar-month-view .grid > div.day-bad-weather:hover {
+  background: #fcd9d9;
+}
+
+.calendar-week-view .grid-cols-8 > div {
+  background: white;
+  min-height: 60px;
+  padding: 4px;
+}
+
+.calendar-day-view .border-b:last-child {
+  border-bottom: none;
+}
+
+.calendar-month-view,
+.calendar-week-view,
+.calendar-day-view {
+  height: var(--calendar-view-height, 1320px);
+  /* auto, not hidden: once the columns hit --calendar-day-min the grid is
+     wider than the card, and scrolling to it beats clipping it. */
+  overflow-x: auto;
+  overflow-y: auto;
+}
+
+/* Month rows carry their own floor and ceiling (see MonthView), so the card
+   takes the height its grid asks for instead of stretching five or six rows
+   across the week view's 1320px - which is what made a cell holding one chip
+   nearly 300px tall. It still never grows past the shared view height. */
+.calendar-month-view {
+  height: auto;
+  max-height: var(--calendar-view-height, 1320px);
+}
+
+/* Sidebar styles */
+.sidebar {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: white;
+  border-right: 1px solid #f3f4f6;
+  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.05);
+}
+
+/* Responsive sidebar */
+@media (max-width: 1024px) {
+  .sidebar {
+    width: 280px;
+  }
+}
+
+/* Profile, filters and weather sit inside .sidebar__drawer, which is the
+   phone's filters sheet. On desktop both wrappers generate no box, so those
+   sections are still direct flex items of .sidebar exactly as before, and the
+   sheet's own header and footer are not drawn. */
+.sidebar__drawer,
+.sidebar__drawer-body {
+  display: contents;
+}
+
+.sidebar__drawer-header,
+.sidebar__drawer-footer {
+  display: none;
+}
+  
+
+/* Keep the embedded voice panel inside the existing sidebar at every width. */
+.calendar-voice-panel {
+  container-type: inline-size;
+  width: 100%;
+  min-width: 0;
+  margin-top: 24px;
+  overflow: clip;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}
+
+.calendar-voice-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #f3f4f6;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.calendar-voice-panel__reset {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #3b82f6;
+  color: white;
+  cursor: pointer;
+}
+
+.calendar-voice-panel__reset:hover {
+  background: #2563eb;
+}
+
+.calendar-voice-panel__reset:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.calendar-voice-panel__reset:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.calendar-voice-panel__actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Closes the phone's voice sheet; on desktop there is nothing to close. */
+.calendar-voice-panel__close {
+  display: none;
+}
+
+.calendar-voice-panel__body {
+  position: relative;
+  height: clamp(32rem, 65vh, 44rem);
+  /* The scaled iframe's layout box is taller than its visible box. Unlike
+     hidden, clip prevents transcript scrollIntoView from scrolling this host
+     container and moving the visual and its Show/Hide control out of view. */
+  overflow: clip;
+}
+
+/* Match the reference panel's scale so Hexa has room for its own controls. */
+.calendar-voice-panel__frame {
+  display: block;
+  width: calc(100% / 0.7);
+  height: calc(100% / 0.7);
+  border: 0;
+  transform: scale(0.7);
+  transform-origin: top left;
+}
+
+@container (min-width: 360px) {
+  .calendar-voice-panel__frame {
+    width: 100%;
+    height: 100%;
+    transform: none;
+  }
+}
+
+/* A phone on its side is wider than the breakpoint, so it gets this desktop
+   sidebar in well under 560px of height. The pane follows the screen down
+   there instead of holding a 32rem floor taller than the screen itself. */
+@media (min-width: 768px) and (max-height: 560px) {
+  .calendar-voice-panel__body {
+    height: max(18rem, calc(var(--cal-viewport-height) - 6rem));
+  }
+}
+
+/* Event type filter styles */
+.event-filters input[type="checkbox"]:checked {
+  background-color: currentColor;
+  border-color: currentColor;
+}
+
+.event-filters input[type="checkbox"]:checked + span {
+  font-weight: 500;
+}
+
+/* Location section styles */
+.location-section .bg-yellow-100 {
+  background-color: #fef3c7;
+}
+
+.location-section .border-yellow-300 {
+  border-color: #f59e0b;
+}
+
+.location-section .text-yellow-500 {
+  color: #d97706;
+}
+
+.location-section .hover\:bg-yellow-600:hover {
+  background-color: #d97706;
+}
+
+/* Current Time Line Styles */
+.current-time-line {
+  position: absolute !important;
+  height: 2px !important;
+  background-color: #000000 !important; /* Black line */
+  z-index: 20 !important;
+  pointer-events: none !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+  transition: top 0.3s ease, left 0.3s ease !important;
+}
+
+.time-line-dot {
+  pointer-events: none;
+}
+
+/* Ensure proper stacking context */
+.calendar-week-view {
+  position: relative !important;
+}
+
+.calendar-week-view .grid {
+  position: relative !important;
+}
+
+/* Ensure the time line is visible above other elements */
+.calendar-week-view .current-time-line,
+.calendar-day-view .current-time-line {
+  z-index: 20 !important;
+}
+
+/* For dark mode support */
+@media (prefers-color-scheme: dark) {
+  .current-time-line {
+    background-color: #ffffff !important; /* White line in dark mode */
+    box-shadow: 0 1px 3px rgba(255, 255, 255, 0.3) !important;
+  }
+}

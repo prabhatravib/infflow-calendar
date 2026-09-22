@@ -1,0 +1,434 @@
+/* ==================================================================
+   MOBILE - VIEWS (max-width: 767px)
+   ==================================================================
+   The phone presentation of what the shell contains: the one scroller,
+   the week strip, the day grid, the month dots and their agenda, the
+   list, and the event modal as a bottom sheet.
+
+   Must be imported last. Several rules here - `.calendar-month-view`'s
+   height, the week view's sticky offsets - override desktop.css and
+   mobile-shell.css at identical specificity and win on source order
+   alone.
+   ================================================================== */
+
+@media (max-width: 767px) {
+  /* --- The one scroller ------------------------------------------- */
+
+  .calendar__body {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .calendar__viewport {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* Each view fills what is left of the screen and scrolls itself; the page
+     never does. */
+  .calendar-month-view,
+  .calendar-week-view,
+  .calendar-day-view,
+  .calendar-list-view {
+    flex: 1 1 auto;
+    height: auto;
+    max-height: none;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+
+  .calendar-list-view {
+    border-radius: 8px;
+    background: white;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  }
+
+  /* --- Week: a strip of day columns -------------------------------- */
+
+  /* Three days fit a phone at a readable width and the other four are a
+     swipe away, one column per snap. The hour gutter and the day headers are
+     pinned, so every slot keeps its time and its date in view. */
+  .calendar-week-view {
+    container-type: inline-size;
+    scroll-snap-type: x mandatory;
+    scroll-padding-left: var(--cal-hour-gutter);
+  }
+
+  /* The grid box spans all seven columns, not just the screen's width: a
+     sticky item cannot leave its grid container, so a screen-wide box let the
+     hour gutter scroll away after the third day. */
+  .calendar-week-view .grid {
+    grid-template-columns: var(--cal-hour-gutter) repeat(7, calc((100cqw - var(--cal-hour-gutter)) / 3));
+    width: max-content;
+    min-width: 100%;
+  }
+
+  .calendar-week-view__corner,
+  .calendar-week-view__gutter {
+    position: sticky;
+    left: 0;
+    min-width: 0;
+  }
+
+  /* Its bottom strip stays see-through: the first hour's label straddles the
+     header line, and a solid corner would cut off its top half. */
+  .calendar-week-view__corner {
+    top: 0;
+    z-index: 26;
+    background: linear-gradient(white calc(100% - 10px), transparent 0) !important;
+  }
+
+  /* Above the day headers, so the 6 AM toggle riding the first hour line is
+     never covered by them. */
+  .calendar-week-view__gutter {
+    z-index: 24;
+    font-size: 11px;
+  }
+
+  .calendar-week-view__day-header {
+    position: sticky;
+    top: 0;
+    z-index: 23;
+    scroll-snap-align: start;
+  }
+
+  /* A phone-width column gives an all-day chip - the weather warning above
+     all - up to three lines instead of an ellipsis after a word. */
+  .calendar-week-view .all-day-events .truncate {
+    display: -webkit-box;
+    overflow: hidden;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+
+  /* --- Day ----------------------------------------------------------- */
+
+  .calendar-day-view .grid {
+    grid-template-columns: var(--cal-hour-gutter) minmax(0, 1fr);
+  }
+
+  .calendar-day-view__gutter {
+    min-width: 0;
+    font-size: 11px;
+  }
+
+  /* Hour labels in the narrower gutter, for both time grids. */
+  .calendar-week-view .calendar-hour-label,
+  .calendar-week-view .hour-boundary-time,
+  .calendar-day-view .calendar-hour-label,
+  .calendar-day-view .hour-boundary-time {
+    right: 4px;
+    padding: 0 2px;
+  }
+}
+
+@media (max-width: 767px) {
+  /* --- Month: dots and an agenda ------------------------------------ */
+
+  /* Seven ~48px columns cannot hold event chips. Each day shows a dot per
+     event and keeps its bad-weather tint; a tap picks the day for the agenda
+     under the grid (see MonthView). */
+  .calendar-month-view .grid {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-rows: max-content;
+    grid-auto-rows: minmax(52px, auto);
+  }
+
+  .calendar-month-view .grid > div {
+    min-height: 0;
+    padding: 4px 2px;
+    text-align: center;
+  }
+
+  .calendar-month-cell__chips {
+    display: none;
+  }
+
+  .calendar-month-cell__dots {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    margin-top: 5px;
+  }
+
+  .calendar-month-cell__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+  }
+
+  .calendar-month-cell__more {
+    color: #4b5563;
+    font-size: 10px;
+    line-height: 1;
+  }
+
+  .calendar-month-cell--selected {
+    box-shadow: inset 0 0 0 2px #2563eb;
+  }
+
+  .calendar-month-agenda {
+    display: block;
+    padding: 12px;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .calendar-month-agenda__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--cal-gap);
+    margin-bottom: 8px;
+  }
+
+  .calendar-month-agenda__title {
+    min-width: 0;
+    color: #111827;
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .calendar-month-agenda__add {
+    flex-shrink: 0;
+    min-height: var(--cal-touch);
+    padding: 0 14px;
+    border: 1px solid #2563eb;
+    border-radius: 12px;
+    color: #1d4ed8;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .calendar-month-agenda__weather {
+    margin-bottom: 8px;
+    padding: 6px 10px;
+    border: 1px solid #fecaca;
+    border-radius: 10px;
+    background: #fef2f2;
+    color: #b91c1c;
+    font-size: 13px;
+  }
+
+  .calendar-month-agenda__empty {
+    padding: 12px 0;
+    color: #6b7280;
+    font-size: 14px;
+    text-align: center;
+  }
+
+  .calendar-month-agenda__list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .calendar-month-agenda__event {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: var(--cal-touch);
+    padding: 6px 12px;
+    border-radius: 10px;
+    text-align: left;
+  }
+
+  .calendar-month-agenda__time {
+    flex-shrink: 0;
+    min-width: 58px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .calendar-month-agenda__event-title {
+    min-width: 0;
+    font-size: 14px;
+    overflow-wrap: anywhere;
+  }
+
+  /* --- List ------------------------------------------------------------ */
+
+  /* The agenda already suits a phone. Its filters, meta line and weather pill
+     only need to wrap and take a thumb; what they filter is unchanged. */
+  .calendar-list-view__filters {
+    padding: 4px 12px;
+  }
+
+  /* Same !important answer to SleepToggles.css as the sidebar filters, and it
+     has to outrank `.cursor-pointer:not(.collapsed)` there (0,2,0). */
+  .calendar-list-view .calendar-list-view__filters label {
+    min-height: var(--cal-touch) !important;
+  }
+
+  .calendar-list-view__filters input[type='checkbox'] {
+    width: 20px;
+    height: 20px;
+  }
+
+  .calendar-list-view__weather {
+    margin-left: 0;
+  }
+
+  .calendar-list-view__row {
+    gap: 12px;
+  }
+
+  .calendar-list-view__meta {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+}
+
+/* --- Event modal ------------------------------------------------------
+   Any screen too small for the whole dialog - a phone, or a phone on its
+   side - keeps the header and tabs fixed and scrolls the form, with Save,
+   Cancel and Delete pinned to the bottom so they are always reachable. */
+@media (max-width: 767px), (max-height: 560px) {
+  .event-modal__panel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .event-modal__header,
+  .event-modal__tabs {
+    flex-shrink: 0;
+  }
+
+  /* No bottom padding on the scroller: a sticky footer pins to the padding's
+     inner edge, which left a strip of form showing underneath it. The footer
+     carries that padding instead. */
+  .event-form,
+  .echo-tab {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-bottom: 0;
+  }
+
+  .event-form__actions,
+  .echo-tab__actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    padding-bottom: calc(8px + var(--cal-safe-bottom));
+    background: white;
+  }
+}
+
+@media (min-width: 768px) and (max-height: 560px) {
+  .event-modal__panel {
+    max-height: calc(var(--cal-viewport-height) - 24px);
+  }
+}
+
+@media (max-width: 767px) {
+  /* A bottom sheet within the dynamic viewport, lifted over the keyboard. */
+  .event-modal {
+    align-items: flex-end;
+    padding-bottom: var(--cal-keyboard-inset);
+  }
+
+  .event-modal__panel {
+    width: 100%;
+    max-width: none;
+    max-height: calc(var(--cal-viewport-height) - var(--cal-safe-top) - var(--cal-gap));
+    margin: 0;
+    border-radius: var(--cal-sheet-radius) var(--cal-sheet-radius) 0 0;
+  }
+
+  .event-modal__header {
+    padding: 4px calc(4px + var(--cal-safe-right)) 4px calc(16px + var(--cal-safe-left));
+  }
+
+  .event-modal__close {
+    display: grid;
+    place-items: center;
+    width: var(--cal-touch);
+    height: var(--cal-touch);
+  }
+
+  .event-modal__tab {
+    flex: 1 1 0;
+    justify-content: center;
+    min-height: var(--cal-touch);
+  }
+
+  .event-form,
+  .echo-tab {
+    padding-right: calc(16px + var(--cal-safe-right));
+    padding-left: calc(16px + var(--cal-safe-left));
+  }
+
+  /* 16px text keeps iOS from zooming in on focus. */
+  .event-form input,
+  .event-form select {
+    min-height: var(--cal-touch);
+    font-size: 16px;
+  }
+
+  .event-form textarea {
+    font-size: 16px;
+  }
+
+  .event-form__actions {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-bottom: calc(8px + var(--cal-safe-bottom));
+  }
+
+  /* When the row wraps, Cancel and Save keep to the right-hand side. */
+  .event-form__primary {
+    margin-left: auto;
+  }
+
+  .event-form__actions button,
+  .echo-tab__actions button {
+    min-height: var(--cal-touch);
+  }
+
+  .echo-tab__actions {
+    padding-top: 8px;
+    padding-bottom: calc(8px + var(--cal-safe-bottom));
+  }
+
+  .echo-tab__canvas {
+    min-height: 220px;
+  }
+
+  /* The flowchart keeps its natural width and scrolls sideways inside the
+     tab; it is centred only while it is narrower than the tab. */
+  .echo-tab__flowchart {
+    justify-content: flex-start;
+  }
+
+  .echo-tab__flowchart > .mermaid {
+    flex-shrink: 0;
+    margin-inline: auto;
+  }
+
+  .echo-tab__flowchart svg {
+    width: var(--echo-flowchart-width, 100%);
+  }
+}
+
+/* --- Short phone screens (a phone on its side) ---------------------------
+   The day headers scroll away instead of pinning a block of all-day chips
+   over the only hours left on screen. The hour gutter still pins sideways.
+   This has to stay after the `top: 0` rules above: same specificity, so
+   source order is the only tiebreaker. */
+@media (max-width: 767px) and (max-height: 560px) {
+  .calendar-week-view__corner,
+  .calendar-week-view__day-header {
+    top: auto;
+  }
+}
