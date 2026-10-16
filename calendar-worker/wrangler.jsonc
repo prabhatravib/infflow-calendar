@@ -6,6 +6,13 @@
     "binding": "ASSETS", 
     "directory": "web/dist" 
   },
+  "services": [
+    {
+      "binding": "HEXA_PROTECTED_CONTROL",
+      "service": "hexa-worker-v2",
+      "entrypoint": "ProtectedVoiceControl"
+    }
+  ],
   "d1_databases": [
     { 
       "binding": "DB", 

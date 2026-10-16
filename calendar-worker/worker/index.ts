@@ -8,8 +8,11 @@ import { icsRouter } from './routes/ics';
 import { seedRouter } from './routes/seed';
 import { AssetService } from './services/asset-service';
 import { Env } from './types';
+import { protectedHexaRouter } from './protectedHexa/routes';
 
 const app = new Hono<{ Bindings: Env }>();
+
+app.route('/', protectedHexaRouter);
 
 // Middleware
 app.use('*', corsMiddleware);

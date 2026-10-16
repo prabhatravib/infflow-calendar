@@ -3,7 +3,17 @@ import react from '@vitejs/plugin-react'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), {
+    name: 'calendar-private-server-boundary',
+    generateBundle() {
+      for (const id of this.getModuleIds()) {
+        const path = id.replace(/\\/g, '/');
+        if (/\/calendar-worker\/worker\//.test(path) || /\/hexa-v2\/src\/(?:worker|shared)\//.test(path)) {
+          this.error('Private server module entered the calendar public build');
+        }
+      }
+    },
+  }],
   build: {
     outDir: 'dist',
     rollupOptions: {

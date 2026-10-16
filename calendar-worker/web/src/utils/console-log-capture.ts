@@ -4,6 +4,7 @@
  * the configured worker origin and iframe window. Logs last for this page load.
  */
 import { sessionManager } from './sessionManager';
+import { redactDiagnosticText, redactDiagnosticValue } from './console-log-redaction';
 import {
   getRollingConsoleEntryKey,
   shouldRetainPreviousRollingEntry,
@@ -128,10 +129,10 @@ export function captureHexaConsoleEntry(payload: unknown): void {
   if (!isConsoleMethod(entry.method)) return;
 
   const args = Array.isArray(entry.args)
-    ? entry.args.filter((arg): arg is string => typeof arg === 'string').map(trimRelayedConsoleValue)
+    ? entry.args.filter((arg): arg is string => typeof arg === 'string').map(redactDiagnosticText).map(trimRelayedConsoleValue)
     : [];
   const message = typeof entry.message === 'string'
-    ? trimRelayedConsoleValue(entry.message)
+    ? trimRelayedConsoleValue(redactDiagnosticText(entry.message))
     : args.join(' ');
   const timestamp = typeof entry.timestamp === 'string' && Number.isFinite(Date.parse(entry.timestamp))
     ? entry.timestamp
@@ -315,18 +316,25 @@ export function installConsoleLogCapture(): void {
   for (const method of CONSOLE_METHODS) {
     const originalMethod = console[method].bind(console);
     console[method] = (...args: unknown[]) => {
+      // Never pass the original private value on to the browser console.
+      let safeArgs: unknown[];
+      try {
+        safeArgs = args.map(arg => redactDiagnosticValue(arg));
+      } catch {
+        safeArgs = ['[unavailable diagnostic]'];
+      }
       try {
         pushCapturedEntry({
           source: 'calendar',
           method,
           timestamp: new Date().toISOString(),
           sessionId: sessionManager.getSessionId(),
-          message: args.map(serializeConsoleArg).join(' '),
+          message: safeArgs.map(serializeConsoleArg).join(' '),
         });
       } catch {
         // Logging must never interrupt application code or console output.
       }
-      originalMethod(...args);
+      originalMethod(...safeArgs);
     };
   }
   isInstalled = true;

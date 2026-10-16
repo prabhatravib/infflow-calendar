@@ -1,8 +1,11 @@
+import type { ProtectedHexaBinding } from '../protectedHexa/routes';
+
 export interface Env {
   DB: any; // D1Database type
   ASSETS: any; // Fetcher type
   USER_ID: string;
   OPENAI_API_KEY: string;
+  HEXA_PROTECTED_CONTROL?: ProtectedHexaBinding;
   [key: string]: any; // Index signature for Hono compatibility
 }
 
