@@ -41,10 +41,13 @@ const record = (value: unknown): value is Record<string, unknown> => value !== n
 /** The real iframe handler and same-origin context queue, with injectable I/O. */
 export class ProtectedHexaBridge {
   private grant: SessionGrant | null = null;
-  private latest: { value: ProtectedCalendarContext; key: string } | null = null;
-  private storedKey: string | null = null;
-  private expectedReceipt: string | null = null;
-  private readonly storedHashes = new Set<string>();
+  private latest: { value: ProtectedCalendarContext; key: string; version: number } | null = null;
+  private storedVersion = 0;
+  private expectedReceipt: { revision: number; sha256: string } | null = null;
+  private readyGeneration: number | null = null;
+  private highestGeneration = 0;
+  private retiredGeneration = 0;
+  private failed = false;
   private epoch = 0;
   private disposed = false;
   private loaded = false;
@@ -56,18 +59,24 @@ export class ProtectedHexaBridge {
   constructor(private readonly options: BridgeOptions) {}
 
   setCalendar(value: ProtectedCalendarContext): void {
+    if (this.disposed) return;
     const key = JSON.stringify(value);
     if (this.latest?.key === key) return;
-    this.latest = { value, key };
+    this.latest = { value, key, version: (this.latest?.version ?? 0) + 1 };
     this.expectedReceipt = null;
     this.options.onSyncState('pending');
+    // A failed write may already have stored a revision. Only a fresh grant
+    // may recover; never restore an earlier expectation or retry old facts.
+    if (this.failed) {
+      if (this.installed) { this.replace(); return; }
+      this.invalidate();
+    }
     this.synchronize();
   }
 
   frameLoaded(): void {
     if (this.disposed) return;
-    // The shared receipt carries the URL's local session ID, not a grant ID.
-    // Rotate the keyed iframe on reload so queued old receipts cannot match.
+    // A real reload starts a fresh memory-only association and presentation restore.
     if (this.loaded) { this.replace(); return; }
     this.loaded = true;
     this.options.onFrameReady();
@@ -75,12 +84,18 @@ export class ProtectedHexaBridge {
   }
 
   handleMessage(event: Pick<MessageEvent, 'origin' | 'source' | 'data'>): void {
-    if (this.disposed || event.origin !== this.options.workerOrigin || event.source !== this.options.getFrame() || !record(event.data)) return;
+    const frame = this.options.getFrame();
+    if (this.disposed || !frame || event.origin !== this.options.workerOrigin || event.source !== frame || !record(event.data)) return;
     const data = event.data;
     if (data.type === 'HEXA_PROTECTED_BOOT_READY') {
       if (data.mode !== undefined && data.mode !== 'normal') return;
-      // Mount/expiry requests a new grant; duplicate startup messages share one.
-      if (this.installed) { this.replace(); return; }
+      // Duplicate readiness must not create another grant/call. An expired
+      // installed grant needs a new association; native call recovery is Hexa's.
+      if (this.installed) {
+        if (this.grant && this.grant.expiresAt <= this.now()) this.replace();
+        return;
+      }
+      if (this.failed) return;
       this.bootReady = true;
       this.options.onFrameReady();
       this.synchronize();
@@ -98,10 +113,36 @@ export class ProtectedHexaBridge {
       typeof data.visualHidden === 'boolean' && typeof data.transcriptHidden === 'boolean'
     ) {
       this.options.onPresentation({ visualHidden: data.visualHidden, transcriptHidden: data.transcriptHidden });
+    } else if (data.type === 'HEXA_PROTECTED_CALL_STATE') {
+      if (!this.activeMessage(data) || Object.keys(data).sort().join(',') !==
+        'generation,protectedSessionId,sessionId,source,state,type' ||
+        !this.generation(data.generation, true) || typeof data.state !== 'string' || !['connecting', 'ready', 'closed'].includes(data.state)) return;
+      const generation = data.generation as number;
+      if (generation < this.highestGeneration) return;
+      if (generation === 0) {
+        if (data.state === 'ready') return;
+        this.retiredGeneration = this.highestGeneration;
+      } else {
+        this.highestGeneration = generation;
+        if (data.state === 'ready') {
+          if (generation <= this.retiredGeneration) return;
+          // A duplicate ready is inert, including after an applied receipt.
+          if (this.readyGeneration === generation) return;
+          this.readyGeneration = generation;
+          this.options.onSyncState(this.expectedReceipt && this.latest?.version === this.storedVersion ? 'stored' : 'pending');
+          return;
+        }
+        if (data.state === 'closed' || this.readyGeneration === generation) this.retiredGeneration = generation;
+      }
+      this.readyGeneration = null;
+      this.options.onSyncState('pending');
     } else if (
-      data.type === 'HEXA_CONTEXT_INJECTED' && data.source === 'hexa-voice' &&
-      this.grant && this.grant.expiresAt > this.now() && this.latest?.key === this.storedKey &&
-      typeof data.sha256 === 'string' && data.sha256 === this.expectedReceipt
+      data.type === 'HEXA_CONTEXT_INJECTED' && this.activeMessage(data) &&
+      Object.keys(data).sort().join(',') === 'contextRevision,contextSha256,generation,protectedSessionId,sessionId,sha256,source,type' &&
+      this.generation(data.generation) && data.generation === this.readyGeneration &&
+      this.latest?.version === this.storedVersion && this.expectedReceipt &&
+      data.contextRevision === this.expectedReceipt.revision &&
+      data.contextSha256 === this.expectedReceipt.sha256 && data.sha256 === data.contextSha256
     ) {
       this.options.onSyncState('applied');
     }
@@ -110,11 +151,22 @@ export class ProtectedHexaBridge {
   }
 
   dispose(): void {
+    if (this.disposed) return;
+    this.options.onSyncState('pending');
     this.disposed = true;
     this.invalidate();
   }
 
   private now(): number { return this.options.now?.() ?? Date.now(); }
+
+  private activeMessage(data: Record<string, unknown>): boolean {
+    return data.source === 'hexa-voice' && !!this.grant && !this.failed && this.installed &&
+      this.grant.expiresAt > this.now() && data.protectedSessionId === this.grant.id;
+  }
+
+  private generation(value: unknown, zero = false): boolean {
+    return typeof value === 'number' && Number.isSafeInteger(value) && value >= (zero ? 0 : 1) && value <= 1_000_000;
+  }
 
   private replace(): void {
     this.dispose();
@@ -127,9 +179,12 @@ export class ProtectedHexaBridge {
     this.abort = null;
     this.pending = null;
     this.grant = null;
-    this.storedKey = null;
+    this.storedVersion = 0;
     this.expectedReceipt = null;
-    this.storedHashes.clear();
+    this.readyGeneration = null;
+    this.highestGeneration = 0;
+    this.retiredGeneration = 0;
+    this.failed = false;
     if (!this.disposed) this.options.onSyncState('pending');
   }
 
@@ -148,12 +203,12 @@ export class ProtectedHexaBridge {
   }
 
   private synchronize(): void {
-    if (this.disposed || !this.loaded || !this.bootReady || !this.latest || this.pending) return;
+    if (this.disposed || this.failed || !this.loaded || !this.bootReady || !this.latest || this.pending) return;
     if (this.grant && this.grant.expiresAt <= this.now()) {
       if (this.installed) { this.replace(); return; }
       this.invalidate();
     }
-    if (this.grant && this.latest.key === this.storedKey) return;
+    if (this.grant && this.latest.version === this.storedVersion) return;
     const epoch = this.epoch;
     const abort = this.abort = new AbortController();
     const current = () => !this.disposed && this.epoch === epoch;
@@ -172,7 +227,7 @@ export class ProtectedHexaBridge {
       }
       // Serialize updates so an older server write cannot win over the latest
       // visible view. A fresh grant gets its context before prewarm starts.
-      while (current() && this.latest && this.latest.key !== this.storedKey) {
+      while (current() && this.latest && this.latest.version !== this.storedVersion) {
         const calendar = this.latest;
         const grant = this.grant!;
         const response = await this.options.fetch('/api/hexa/context', {
@@ -182,7 +237,6 @@ export class ProtectedHexaBridge {
         });
         if (!current()) return;
         if (!response.ok) {
-          if ((response.status === 401 || response.status === 403) && this.installed) { this.replace(); return; }
           throw new Error('context_failed');
         }
         const receipt: unknown = await response.json();
@@ -193,14 +247,12 @@ export class ProtectedHexaBridge {
           !Number.isSafeInteger(receipt.contextRevision) || receipt.contextRevision <= 0 ||
           typeof receipt.contextSha256 !== 'string' || !protectedId.test(receipt.contextSha256)
         ) throw new Error('context_receipt_invalid');
-        this.storedKey = calendar.key;
-        // The sealed iframe receipt has no revision field. A repeated hash
-        // after another context cannot prove which revision was applied, so
-        // leave that acknowledgement pending rather than accept a queued one.
-        this.expectedReceipt = this.storedHashes.has(receipt.contextSha256) ? null : receipt.contextSha256;
-        this.storedHashes.add(receipt.contextSha256);
+        this.storedVersion = calendar.version;
+        this.expectedReceipt = this.latest?.version === calendar.version
+          ? { revision: receipt.contextRevision, sha256: receipt.contextSha256 } : null;
       }
       if (!current()) return;
+      if (!this.grant || this.grant.expiresAt <= this.now()) throw new Error('grant_expired');
       this.options.onSyncState('stored');
       const installGrant = !this.installed;
       if (installGrant) this.installed = true;
@@ -209,9 +261,18 @@ export class ProtectedHexaBridge {
         : { type: 'HEXA_PROTECTED_CONTEXT_UPDATED' }, this.options.workerOrigin);
     };
     const pending = run().catch(() => {
-      if (current()) { this.expectedReceipt = null; this.options.onSyncState('error'); }
+      if (current()) {
+        this.expectedReceipt = null;
+        this.readyGeneration = null;
+        this.failed = true;
+        this.options.onSyncState('error');
+      }
     }).finally(() => {
-      if (this.pending === pending) { this.pending = null; this.abort = null; }
+      if (this.pending === pending) {
+        this.pending = null;
+        this.abort = null;
+        this.synchronize();
+      }
     });
     this.pending = pending;
   }

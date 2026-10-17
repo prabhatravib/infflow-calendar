@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "test": "node --test tests/calendar-date-range.test.mjs tests/console-log-redaction.test.mjs tests/protected-hexa-build-scan.test.mjs tests/protected-hexa-server.test.mjs tests/protected-hexa-bridge.test.mjs",
+    "test": "node --test tests/calendar-date-range.test.mjs tests/console-log-redaction.test.mjs tests/protected-hexa-build-scan.test.mjs tests/protected-hexa-server.test.mjs tests/protected-hexa-bridge.test.mjs tests/protected-hexa-v2-integration.test.mjs tests/protected-hexa-transcript.test.mjs tests/protected-hexa-tool-parity.test.mjs tests/protected-hexa-component.test.mjs",
     "dev": "vite",
     "build": "tsc && vite build && npm run scan:protected",
     "build:prod": "tsc && vite build --mode production && npm run scan:protected",

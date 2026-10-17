@@ -28,6 +28,9 @@ export const PRIVATE_MARKERS = [
   'Full-stack TypeScript application with edge-first deployment on Cloudflare Workers',
   'CHESKY_NARRATOR_KNOWLEDGE_PACK',
   'CALENDAR_CONTEXT_POLICY', 'Calendar host context (shared-protected-voice/1).', 'CALENDAR_DATA_JSON:',
+  'Calendar host context (shared-protected-voice/2).',
+  'src/worker/voice/', 'calendar-worker/worker/', 'cf-worker/worker/',
+  'src/shared/agentInstructions', 'wrangler.jsonc', 'wrangler.chesky.toml',
 ];
 
 export function scanProtectedHost(directory) {
@@ -41,7 +44,7 @@ export function scanProtectedHost(directory) {
       files++;
       const file = relative(root, path).replaceAll('\\', '/');
       if (/\.(?:map|[cm]?tsx?)$/i.test(file) || /(?:^|\/)(?:worker|src|shared)(?:\/|$)/i.test(file)
-        || /(?:^|\/)(?:wrangler[^/]*|\.dev\.vars|\.env[^/]*)$/i.test(file)) failures.push({ file, kind: 'source_asset' });
+        || /(?:^|\/)(?:wrangler[^/]*|\.dev\.vars|\.env[^/]*|package(?:-lock)?\.json|tsconfig[^/]*\.json|vite\.config\.[^/]+)$/i.test(file)) failures.push({ file, kind: 'source_asset' });
       const value = readFileSync(path).toString('utf8');
       for (const marker of PRIVATE_MARKERS) if (value.includes(marker)) failures.push({ file, kind: 'private_marker', marker });
       if (/\bsk-[A-Za-z0-9_-]{16,}|Bearer\s+[A-Za-z0-9_-]{32,}|["']capability["']\s*:\s*["'][a-f0-9]{64}/i.test(value)) {

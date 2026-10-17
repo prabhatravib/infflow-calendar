@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
@@ -21,7 +22,9 @@ function loadSource(file) {
       .find(path => existsSync(path) && path.endsWith('.ts'));
     return source ? loadSource(source) : installedRequire(name);
   };
-  const { outputText } = ts.transpileModule(readFileSync(file, 'utf8'), {
+  const input = file === fileURLToPath(new URL('../../worker/protectedHexa/routes.ts', import.meta.url)) && process.env.CALENDAR_TEST_ROUTE_CANDIDATE
+    ? resolve(process.env.CALENDAR_TEST_ROUTE_CANDIDATE) : file;
+  const { outputText } = ts.transpileModule(readFileSync(input, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
   });
   new Function('require', 'module', 'exports', outputText)(sourceRequire, module, module.exports);
@@ -48,10 +51,7 @@ const fixture = () => ({
 });
 function harness() {
   const calls = [];
-  const env = { HEXA_PROTECTED_CONTROL: {
-    createSession: async (...args) => { calls.push(['create', ...args]); throw new Error('PRIVATE_PROVIDER_CAPABILITY_ERROR'); },
-    setContext: async (...args) => { calls.push(['context', ...args]); throw new Error('PRIVATE_CONTEXT_AND_PROVIDER_FRAME'); },
-  } };
+  const env = {};
   const request = (path, body, options = {}) => app.fetch(new Request(`${options.requestOrigin ?? origin}${path}`, {
     method: options.method ?? 'POST', headers: {
       Origin: options.origin ?? origin, 'Content-Type': 'application/json',
@@ -61,7 +61,7 @@ function harness() {
   return { calls, env, request };
 }
 
-test('actual host bootstrap withholds grants until the shared atomic calendar ownership contract exists', async () => {
+test('actual host bootstrap withholds grants when the version-2 binding is unavailable', async () => {
   const h = harness();
   const result = await h.request('/api/hexa/session', {});
   assert.equal(result.status, 503);
@@ -164,4 +164,38 @@ test('ordinary public calendar routes retain their CORS and DB behavior', async 
   assert.equal(result.headers.get('Access-Control-Allow-Origin'), '*');
   assert.deepEqual(await result.json(), { events: [{ id: 'existing-event' }] });
   assert.equal(queries.length, 1);
+});
+
+test('host projects validated grants/stored results with fixed server ownership and no private exception/log projection', async () => {
+  const h = harness(); const grant = { id, capability, mode: 'normal', parentOrigin: origin, expiresAt: Date.now() + 7_190_000 };
+  const calls = [];
+  h.env.HEXA_PROTECTED_CONTROL = {
+    async createSession(...args) { calls.push(args); return grant; },
+    async setContextForOwner(...args) {
+      calls.push(args);
+      return { ready: true, contextRevision: 7, contextSha256: createHash('sha256').update(args[2]).digest('hex') };
+    },
+    setContext() { assert.fail('Bearer-only fallback is forbidden'); },
+  };
+  const result = await h.request('/api/hexa/session', {});
+  assert.equal(result.status, 201); assert.deepEqual(await result.json(), { grant });
+  assert.deepEqual(calls[0], ['normal', origin, 'calendar']);
+  const stored = await h.request('/api/hexa/context', { sessionId: id, calendar: fixture() }, { authorized: true });
+  assert.equal(stored.status, 200);
+  assert.deepEqual(await stored.json(), { ready: true, contextRevision: 7, contextSha256: createHash('sha256').update(buildCalendarContext(fixture())).digest('hex') });
+  assert.deepEqual(calls[1], [id, capability, buildCalendarContext(fixture()), { profile: 'calendar', mode: 'normal', parentOrigin: origin }]);
+  for (const bad of [{ ...grant, profile: 'calendar' }, { ...grant, mode: 'narrator' }, { ...grant, parentOrigin: 'https://wrong.example' }, { ...grant, expiresAt: 1 }]) {
+    h.env.HEXA_PROTECTED_CONTROL.createSession = async () => bad;
+    const response = await h.request('/api/hexa/session', {});
+    assert.equal(response.status, 503); assert.equal(await response.text(), '{"error":"calendar_context_contract_unavailable"}');
+  }
+  for (const bad of [{ ready: true, contextRevision: 0, contextSha256: 'c'.repeat(64) },
+    { ready: true, contextRevision: 1, contextSha256: 'c'.repeat(64), context: 'PRIVATE_CONTEXT' }]) {
+    h.env.HEXA_PROTECTED_CONTROL.setContextForOwner = async () => bad;
+    const response = await h.request('/api/hexa/context', { sessionId: id, calendar: fixture() }, { authorized: true });
+    assert.equal(response.status, 503); assert.equal(await response.text(), '{"error":"calendar_context_contract_unavailable"}');
+  }
+  h.env.HEXA_PROTECTED_CONTROL.setContextForOwner = async () => { throw new Error('PRIVATE_PROVIDER_CONTEXT_CAPABILITY'); };
+  const response = await h.request('/api/hexa/context', { sessionId: id, calendar: fixture() }, { authorized: true });
+  assert.equal(response.status, 503); assert.equal(await response.text(), '{"error":"calendar_context_contract_unavailable"}');
 });

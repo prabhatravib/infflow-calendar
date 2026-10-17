@@ -10,13 +10,29 @@ export interface CalendarGrant {
 export interface CalendarContextReceipt { ready: true; contextRevision: number; contextSha256: string }
 export interface ProtectedHexaBinding {
   createSession(mode: 'normal', parentOrigin: string, expectedProfile: 'calendar'): Promise<CalendarGrant>;
-  setContext(id: string, capability: string, context: string): Promise<CalendarContextReceipt>;
+  setContextForOwner(id: string, capability: string, context: string, expected: {
+    profile: 'calendar'; mode: 'normal'; parentOrigin: string;
+  }): Promise<CalendarContextReceipt>;
 }
 const response = (value: unknown, status = 200) => new Response(JSON.stringify(value), {
   status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' },
 });
 function record(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+function grantResult(value: unknown): CalendarGrant {
+  if (!record(value) || Object.keys(value).sort().join(',') !== 'capability,expiresAt,id,mode,parentOrigin' ||
+      typeof value.id !== 'string' || !ID.test(value.id) || typeof value.capability !== 'string' || !ID.test(value.capability) ||
+      value.mode !== 'normal' || value.parentOrigin !== CALENDAR_PARENT_ORIGIN ||
+      typeof value.expiresAt !== 'number' || !Number.isSafeInteger(value.expiresAt) ||
+      value.expiresAt <= Date.now() || value.expiresAt > Date.now() + 7_200_000) throw new Error('invalid_grant');
+  return { id: value.id, capability: value.capability, mode: 'normal', expiresAt: value.expiresAt, parentOrigin: CALENDAR_PARENT_ORIGIN };
+}
+function storedResult(value: unknown, expectedHash: string): CalendarContextReceipt {
+  if (!record(value) || Object.keys(value).sort().join(',') !== 'contextRevision,contextSha256,ready' ||
+      value.ready !== true || typeof value.contextRevision !== 'number' || !Number.isSafeInteger(value.contextRevision) ||
+      value.contextRevision <= 0 || value.contextSha256 !== expectedHash) throw new Error('invalid_receipt');
+  return { ready: true, contextRevision: value.contextRevision, contextSha256: expectedHash };
 }
 async function boundedBody(request: Request): Promise<Record<string, unknown>> {
   if (!/^application\/json(?:\s*;|$)/i.test(request.headers.get('Content-Type') ?? '') ||
@@ -54,21 +70,37 @@ protectedHexaRouter.all('/api/hexa/*', async c => {
   if (!['/api/hexa/session', '/api/hexa/context'].includes(c.req.path)) return response({ error: 'not_found' }, 404);
   if (request.method !== 'POST') return response({ error: 'method_not_allowed' }, 405);
   let value: Record<string, unknown>;
+  let context: string | undefined;
+  let capability: string | undefined;
   try {
     value = await boundedBody(request);
     if (c.req.path === '/api/hexa/session') {
       if (Object.keys(value).length !== 0) return response({ error: 'invalid_request' }, 400);
     } else {
-      const capability = /^Bearer ([a-f0-9]{64})$/.exec(request.headers.get('Authorization') ?? '')?.[1];
+      capability = /^Bearer ([a-f0-9]{64})$/.exec(request.headers.get('Authorization') ?? '')?.[1];
       if (!capability || typeof value.sessionId !== 'string' || !ID.test(value.sessionId)) return response({ error: 'forbidden' }, 403);
       if (Object.keys(value).sort().join(',') !== 'calendar,sessionId') return response({ error: 'invalid_request' }, 400);
-      buildCalendarContext(value.calendar);
+      context = buildCalendarContext(value.calendar);
     }
   } catch { return response({ error: 'invalid_request' }, 400); }
-  // shared-protected-voice/1 setContext authenticates only id + capability. It
-  // cannot atomically constrain the existing session's profile, mode and parent
-  // origin. Do not expose a write proxy for another app's bearer pair, issue an
-  // unusable grant, invent a future RPC or install an isolate-local registry.
-  // The shared coordinator must seal that missing ownership contract first.
-  return response({ error: 'calendar_context_contract_unavailable' }, 503);
+  // shared-protected-voice/2, independently verified 38-input seal:
+  // 9f5d626fcdce335e516e98bb552f54c9db4944c012b2f407f2e4ef1bf8281e6d
+  // No bearer-only fallback: a legacy/incompatible binding remains unavailable.
+  const binding = c.env.HEXA_PROTECTED_CONTROL;
+  if (!binding || typeof binding.createSession !== 'function' || typeof binding.setContextForOwner !== 'function') {
+    return response({ error: 'calendar_context_contract_unavailable' }, 503);
+  }
+  try {
+    if (context === undefined) {
+      return response({ grant: grantResult(await binding.createSession('normal', CALENDAR_PARENT_ORIGIN, 'calendar')) }, 201);
+    }
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(context));
+    const hash = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+    const stored = await binding.setContextForOwner(value.sessionId as string, capability!, context, {
+      profile: 'calendar', mode: 'normal', parentOrigin: CALENDAR_PARENT_ORIGIN,
+    });
+    return response(storedResult(stored, hash));
+  } catch {
+    return response({ error: 'calendar_context_contract_unavailable' }, 503);
+  }
 });
