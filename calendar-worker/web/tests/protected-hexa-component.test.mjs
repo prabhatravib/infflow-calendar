@@ -30,7 +30,7 @@ test('actual mounted HexaWorker retains one hidden/prewarmed iframe, validates v
   dom.window.fetch = async (url, init) => {
     requests.push(url);
     if (url.endsWith('/session')) return Response.json({ grant: { id: (++grants).toString(16).padStart(64, '0'), capability: 'b'.repeat(64),
-      mode: 'normal', parentOrigin: origin, expiresAt: Date.now() + 7_190_000 } });
+      mode: 'normal', parentOrigin: origin, expiresAt: Date.now() + 7_190_000 }, serverNow: Date.now() });
     stored = { ready: true, contextRevision: 1, contextSha256: createHash('sha256').update(buildCalendarContext(JSON.parse(init.body).calendar)).digest('hex') };
     return Response.json(stored);
   };

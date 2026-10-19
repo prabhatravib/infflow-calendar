@@ -74,7 +74,7 @@ function calendarFixture(view = 'week', selected = '2026-09-13T21:45:00') {
   return createProtectedCalendarContext(data, getCalendarWeatherContext(data.weatherData, view, data.currentDate), 'America/New_York', 'en-US');
 }
 
-function bridgeHarness(fetcher) {
+function bridgeHarness(fetcher, browserNow = Date.now()) {
   const frame = { postMessage: (data, target) => messages.push({ data, target }) };
   const messages = [];
   const states = [];
@@ -82,13 +82,13 @@ function bridgeHarness(fetcher) {
   const snapshots = [];
   const logs = [];
   let replacements = 0;
-  let now = Date.now();
+  let now = browserNow;
   let grants = 0;
   const grant = () => ({ id: String(++grants).padStart(64, '0'), capability: 'b'.repeat(64), mode: 'normal', expiresAt: now + 7_200_000, parentOrigin: CALENDAR_PARENT_ORIGIN });
   const fixtureFetch = async (url, init) => {
     requests.push({ url, init, body: JSON.parse(init.body) });
     if (fetcher) return fetcher(url, init, grant);
-    if (url === '/api/hexa/session') return json({ grant: grant() }, 201);
+    if (url === '/api/hexa/session') return json({ grant: grant(), serverNow: Date.now() }, 201);
     return json({ ready: true, contextRevision: requests.filter(request => request.url === '/api/hexa/context').length, contextSha256: hash(init.body) });
   };
   const bridge = new ProtectedHexaBridge({
@@ -126,11 +126,76 @@ test('calendar construction keeps local dates, timezone, units and explicit unav
   assert.deepEqual([day.weather.startDate, day.weather.endDate, day.weather.unavailableDates], ['2026-11-01', '2026-11-01', ['2026-11-01']]);
 });
 
+test('real session route and bridge accept a grant when the browser clock is 90 seconds behind', async () => {
+  const serverNow = Date.now();
+  const previousNow = Date.now;
+  Date.now = () => serverNow;
+  const replies = [];
+  const grant = { id: 'a'.repeat(64), capability: 'b'.repeat(64), mode: 'normal',
+    parentOrigin: CALENDAR_PARENT_ORIGIN, expiresAt: serverNow + 7_200_000 };
+  const binding = {
+    async createSession() { return grant; },
+    async setContextForOwner(_id, _capability, context) {
+      return { ready: true, contextRevision: 1, contextSha256: hash(context) };
+    },
+  };
+  const h = bridgeHarness(async (url, init) => {
+    const response = await protectedHexaRouter.fetch(new Request(`${CALENDAR_PARENT_ORIGIN}${url}`, {
+      ...init, headers: { ...init.headers, Origin: CALENDAR_PARENT_ORIGIN },
+    }), { HEXA_PROTECTED_CONTROL: binding });
+    replies.push(await response.clone().json());
+    return response;
+  });
+  h.advance(-90_000);
+  try {
+    h.bridge.setCalendar(calendarFixture()); h.bridge.frameLoaded(); h.boot(); await settle();
+    assert.equal(h.states.at(-1), 'stored');
+    assert.equal(h.messages.length, 1);
+    assert.deepEqual(h.messages[0].data, { type: 'HEXA_PROTECTED_SESSION', grant, start: true });
+    assert.equal(Object.keys(grant).length, 5);
+    assert.deepEqual(replies[0], { grant, serverNow });
+    assert.deepEqual(Object.keys(replies[1]).sort(), ['contextRevision', 'contextSha256', 'ready']);
+  } finally {
+    h.bridge.dispose(); Date.now = previousNow;
+  }
+});
+
+test('real bridge bounds grant lifetime by server time and refuses invalid or missing clock readings', async () => {
+  const serverNow = 1_800_000_000_000;
+  const grant = { id: 'a'.repeat(64), capability: 'b'.repeat(64), mode: 'normal',
+    parentOrigin: CALENDAR_PARENT_ORIGIN, expiresAt: serverNow + 7_200_000 };
+  const valid = { grant, serverNow };
+  const cases = [
+    ['exact ceiling', valid, serverNow, true],
+    ['browser behind', valid, serverNow - 90_000, true],
+    ['browser ahead but unexpired', valid, serverNow + 90_000, true],
+    ['over ceiling', { ...valid, grant: { ...grant, expiresAt: grant.expiresAt + 1 } }, serverNow - 90_000, false],
+    ['expired on server', { ...valid, grant: { ...grant, expiresAt: serverNow } }, serverNow - 90_000, false],
+    ['expired locally', valid, grant.expiresAt, false],
+    ['missing clock', { grant }, serverNow, false],
+    ...[null, '1800000000000', 0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1].map(value =>
+      [`invalid clock ${value}`, { grant, serverNow: value }, serverNow, false]),
+    ['unknown reply key', { ...valid, extra: true }, serverNow, false],
+    ['clock inside grant', { grant: { ...grant, serverNow }, serverNow }, serverNow, false],
+  ];
+  for (const [name, reply, browserNow, accepted] of cases) {
+    const h = bridgeHarness(async (url, init) => url === '/api/hexa/session' ? json(reply, 201)
+      : json({ ready: true, contextRevision: 1, contextSha256: hash(init.body) }), browserNow);
+    try {
+      h.bridge.setCalendar(calendarFixture()); h.bridge.frameLoaded(); h.boot(); await settle();
+      assert.equal(h.states.at(-1), accepted ? 'stored' : 'error', name);
+      assert.equal(h.requests.length, accepted ? 2 : 1, name);
+      assert.equal(h.messages.length, accepted ? 1 : 0, name);
+      if (accepted) assert.deepEqual(h.messages[0].data, { type: 'HEXA_PROTECTED_SESSION', grant, start: true });
+    } finally { h.bridge.dispose(); }
+  }
+});
+
 test('candidate queue holds early context, coalesces readiness and sends start only after latest stored context', async () => {
   const gate = deferred();
   let contextWrites = 0;
   const h = bridgeHarness(async (url, init, grant) => {
-    if (url === '/api/hexa/session') return json({ grant: grant() }, 201);
+    if (url === '/api/hexa/session') return json({ grant: grant(), serverNow: Date.now() }, 201);
     contextWrites++;
     if (contextWrites === 1) await gate.promise;
     return json({ ready: true, contextRevision: contextWrites, contextSha256: hash(init.body) });
@@ -222,7 +287,7 @@ test('candidate live context changes notify readiness without another session or
 test('candidate ambiguous context failure gets a fresh grant on new facts and installs once after success', async () => {
   let writes = 0;
   const h = bridgeHarness(async (url, init, grant) => {
-    if (url === '/api/hexa/session') return json({ grant: grant() }, 201);
+    if (url === '/api/hexa/session') return json({ grant: grant(), serverNow: Date.now() }, 201);
     if (++writes === 1) return json({ error: 'unavailable' }, 503);
     return json({ ready: true, contextRevision: 1, contextSha256: hash(init.body) });
   });
@@ -273,7 +338,7 @@ test('candidate expiry, fresh grant request and iframe reload rotate local assoc
 
 test('reset/stop dispose stale async bootstrap; new page rebuilds current context rather than persisting capabilities', async () => {
   const gate = deferred();
-  const old = bridgeHarness(async (_url, _init, grant) => { await gate.promise; return json({ grant: grant() }, 201); });
+  const old = bridgeHarness(async (_url, _init, grant) => { await gate.promise; return json({ grant: grant(), serverNow: Date.now() }, 201); });
   old.bridge.setCalendar(calendarFixture()); old.bridge.frameLoaded(); old.boot();
   old.bridge.dispose(); gate.resolve(); await settle();
   assert.equal(old.messages.length, 0);
@@ -295,7 +360,7 @@ test('invalid candidate grants/receipts are bounded errors with no start', async
       if (bad === 'origin') value.parentOrigin = 'https://wrong.example';
       if (bad === 'expired') value.expiresAt = 1;
       if (bad === 'extra') value.instructions = 'forbidden';
-      return json({ grant: value });
+      return json({ grant: value, serverNow: Date.now() });
     });
     h.bridge.setCalendar(calendarFixture()); h.bridge.frameLoaded(); h.boot(); await settle();
     assert.equal(h.states.at(-1), 'error', bad);
@@ -336,7 +401,7 @@ test('serialized A -> B -> A during an in-flight write needs a new revision; dis
   for (const dispose of [false, true]) {
     const gate = deferred(); let revision = 0;
     const h = bridgeHarness(async (url, init, grant) => {
-      if (url === '/api/hexa/session') return json({ grant: grant() });
+      if (url === '/api/hexa/session') return json({ grant: grant(), serverNow: Date.now() });
       const current = ++revision; if (current === 1) await gate.promise;
       return json({ ready: true, contextRevision: current, contextSha256: hash(init.body) });
     });
@@ -357,7 +422,7 @@ test('serialized A -> B -> A during an in-flight write needs a new revision; dis
 test('a failed live write clears old expectations and waits for new facts/reset before grant replacement', async () => {
   let writes = 0;
   const h = bridgeHarness(async (url, init, grant) => url === '/api/hexa/session'
-    ? json({ grant: grant() }) : ++writes === 1
+    ? json({ grant: grant(), serverNow: Date.now() }) : ++writes === 1
       ? json({ ready: true, contextRevision: 1, contextSha256: hash(init.body) }) : json({ error: 'bounded' }, 503));
   const a = calendarFixture(); h.bridge.setCalendar(a); h.bridge.frameLoaded(); h.boot(); await settle();
   const oldHash = hash(h.requests.at(-1).init.body); h.applied(oldHash); assert.equal(h.states.at(-1), 'applied');
@@ -370,7 +435,7 @@ test('a failed live write clears old expectations and waits for new facts/reset 
 test('a grant expiring during the initial write is never started', async () => {
   const gate = deferred();
   const h = bridgeHarness(async (url, init, grant) => {
-    if (url === '/api/hexa/session') return json({ grant: grant() });
+    if (url === '/api/hexa/session') return json({ grant: grant(), serverNow: Date.now() });
     await gate.promise; return json({ ready: true, contextRevision: 1, contextSha256: hash(init.body) });
   });
   h.bridge.setCalendar(calendarFixture()); h.bridge.frameLoaded(); h.boot(); await settle();

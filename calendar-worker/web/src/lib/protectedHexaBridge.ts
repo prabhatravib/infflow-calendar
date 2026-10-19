@@ -189,7 +189,9 @@ export class ProtectedHexaBridge {
   }
 
   private readGrant(value: unknown): SessionGrant | null {
-    if (!record(value) || Object.keys(value).length !== 1 || !record(value.grant)) return null;
+    if (!record(value) || Object.keys(value).sort().join(',') !== 'grant,serverNow' || !record(value.grant)) return null;
+    const serverNow = value.serverNow;
+    if (typeof serverNow !== 'number' || !Number.isSafeInteger(serverNow) || serverNow <= 0) return null;
     const grant = value.grant;
     if (Object.keys(grant).sort().join(',') !== 'capability,expiresAt,id,mode,parentOrigin') return null;
     if (
@@ -197,7 +199,8 @@ export class ProtectedHexaBridge {
       typeof grant.capability !== 'string' || !protectedId.test(grant.capability) ||
       grant.mode !== 'normal' || grant.parentOrigin !== this.options.parentOrigin ||
       typeof grant.expiresAt !== 'number' || !Number.isSafeInteger(grant.expiresAt) ||
-      grant.expiresAt <= this.now() || grant.expiresAt > this.now() + 7_200_000
+      // The Worker clock bounds lifetime; browser time only checks expiry.
+      grant.expiresAt <= this.now() || grant.expiresAt <= serverNow || grant.expiresAt > serverNow + 7_200_000
     ) return null;
     return grant as unknown as SessionGrant;
   }

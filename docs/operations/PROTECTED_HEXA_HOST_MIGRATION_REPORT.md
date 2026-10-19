@@ -1,3 +1,103 @@
+# Calendar grant-clock fix and version-4 revalidation — October 18, 2026
+
+**LOCAL FIX / OFFLINE PASS. NOT DEPLOYED. A SEPARATELY APPROVED ROLLOUT IS REQUIRED.** October 18, 2026 (America/New_York). This task ran zero deployments, Cloudflare/Wrangler commands (including dry-runs), secret reads or changes, real provider calls, page loads, microphone sessions, deliveries, commits or pushes. Only Calendar source, tests, this report and ignored local evidence were written. Installed tools only; nothing was installed or updated.
+
+**Live state is UNKNOWN.** This machine has no Calendar deploy log since October 16, 2026; the last recorded live Calendar version is the legacy `054aee41-26c5-4af8-afff-4f8a528fac8e`. That is historical evidence, not a current-version claim. The October 16 preflight and its HOLD below are preserved history. Its statements that shared Hexa is still legacy, Email is unregistered, and every host must migrate together are superseded by the current shared contract/report and `x_prompts/README.md`. The shared switch is recorded as completed; no shared redeploy or repeat cutover is authorized or presumed here. Fresh live reconciliation belongs to a separately approved rollout under prompt 11.
+
+## Verified identities and version-4 seal
+
+Read first: `x_prompts/README.md`, `x_prompts/PROTECTED_HOST_V2_REQUIREMENTS.md`, Hexa's current contract and version-4 report section, and this report. Read-only clock references: Codegen's `apps/frontend/worker/protectedHexa/routes.ts` and `apps/frontend/src/services/protectedHexaBridge.ts`; Email's `apps/server/src/routes/hexa.ts` and `apps/mail/lib/hexa-protected-bridge.ts`.
+
+| Checkout under `C:/Users/prabh/GitHub-primary/` | HEAD | Entry state and preservation |
+|---|---|---|
+| `infflow-calendar` | `268a38fbd43eab05b2ebc66973c24f117f47e582` | Clean; committed migration retained; only the six paths listed below changed |
+| `hexa-v2` (read only) | `8c455a85cb27c30cf0e7020f48e8a6f0b8288a25` | HEAD holds version 3; version 4 is uncommitted. Five dirty files, no untracked files, preserved byte-for-byte |
+| `Infflow-Codegen` (read only) | `f0e6e45503dabda5ee3a2856e587f845f994d2fa` | Clean; preserved |
+| `infflow-email` (read only) | `8849dae7d858ad312f14f3c9738e8a60c7cf26fc` | Owner candidate: 10 modified and 8 untracked files; every identity and byte preserved |
+
+Hexa's five dirty files are `AGENTS.md`, `docs/operations/SHARED_PROTECTED_VOICE_MIGRATION_CONTRACT.md`, `docs/operations/SHARED_PROTECTED_VOICE_MIGRATION_REPORT.md`, `src/frontend/hooks/voiceSessionTranscriptBufferManager.ts`, and `tests/unit/protected-voice-session-integration.test.ts`. No shared source, test, report or line ending was rewritten. Full roots, HEADs, dirty/untracked paths, individual hashes, lock/config identities, source manifests and entry/final artifact manifests are recorded in the new ignored evidence directory **`.wrangler/protected-hexa-v4-clock-2026-10-18-local/`** (`E` in this section). Earlier evidence is preserved; the full-suite build-scan test additionally writes its existing allowed scan fixtures under the version-2 evidence directory.
+
+Independently verified **`shared-protected-voice/4`**, **51/51 exact working-tree input hashes** from contract section 3.8. SHA-256 of ordinal-sorted `path:sha256` lines joined with LF and no trailing LF matches:
+
+`b60e7c455791c0c2ab48366443dc3016829c865284aa76e2daff45c449ea5b6e`
+
+Verified before editing, after build, and at final preservation review. Exact bytes, including the owner's CRLF/mixed inputs, are the identity. The unchanged five-file Hexa protected artifact manifest is `2661ec6025253bed6ef9da793e4bf88b08efe26f5133f38ad248e1e6fbcb797c`; Hexa was not rebuilt. Version 2/3 seals and earlier pass counts below remain historical.
+
+Calendar locks/configs are unchanged, including Worker lock `7255a5bf75f688203a6978782dc0f86d50bdee3c1557e470db8ca0f708100e01`, web lock `6ec843001c199d13e433d489a675c269b24ab1b0bdd9c008d4ca705ac716b491`, and `calendar-worker/wrangler.jsonc` `6c69562def6e08302bc61b7080b0c8b9a844c121ea7581b1addb1553428dea25`. Worker name remains `infflow-calendar`, iframe remains `/enhancedMode` on `hexa-worker-v2.prabhatravib.workers.dev`, and the private binding remains `hexa-worker-v2#ProtectedVoiceControl`. UI, storage, weather, navigation, diagnostics, D1 schema/data and permissions are unchanged.
+
+## Clock fix, regression and compatibility
+
+First added `real session route and bridge accept a grant when the browser clock is 90 seconds behind`, through the actual route and `ProtectedHexaBridge`, with inert service-binding I/O. On the original production source it **FAILED**, `error !== stored`, with no iframe start (`E/regression-before-clock.log`). The route's old one-key reply was accepted structurally, but its valid 7200-second grant exceeded the slow browser's lifetime ceiling. The same unchanged regression **PASSES** after the fix in the full suite.
+
+The session route now reads `serverNow = Date.now()` exactly once immediately after `createSession` returns, validates the grant against that reading and returns `{grant, serverNow}`. The bridge requires that exact envelope and a positive safe-integer `serverNow`, requires `expiresAt > serverNow`, and enforces `expiresAt <= serverNow + 7_200_000`. Browser time only decides whether a grant has already expired; later lifecycle expiry checks retain that behavior. The iframe still receives the unchanged strict five-field grant. Context replies remain exactly `{ready, contextRevision, contextSha256}` with no clock. No ownership, receipt, queue, prewarm, retry or native-control behavior changed.
+
+Additional real route/bridge checks cover the exact ceiling, ceiling +1 ms, server expiry, browser expiry, slow/ahead clocks, missing/null/string/nonpositive/fractional/unsafe clock readings, unknown reply fields, a clock incorrectly inserted inside the grant, and one post-create clock reading reused for validation and response. Refused bootstrap replies produce no context write or iframe start.
+
+**Reload requirement for rollout:** tabs loaded before deployment must be reloaded. The old bridge rejects unknown reply keys, so it refuses the new `serverNow` bootstrap envelope. The new bridge intentionally refuses an old response without `serverNow`. Existing tabs are not hot-upgraded by a Worker deploy.
+
+**Version-3 behavior delta retained in version 4:** Calendar's three Hexa-local tools now use the legacy factory argument defaults, unlike the stricter version-2 local-tool handling. `switchToAspect` applies `Number(aspectNumber)`, defaults a nonfinite value to 1, uses a string `userRequest` or `''`, and ignores extra fields; the bounded wire still refuses noninteger/out-of-range aspects outside 1–6. `setVoicePower` chooses `on` only for exact `"on"`, otherwise `off`; `setVisualVisibility` chooses `visible` only for exact `"visible"`, otherwise `hidden`. Calendar's legacy 16 offerings, message-text results, no-handler refusal and 8 s/30 s deadlines remain. No Calendar action handler or CRUD tool was added. Version 4 itself changes only the shared browser transcript chain, applying each delivered spoken event object once while preserving equal-content genuine events, Text/Voice ownership and completion-as-metadata.
+
+## Commands, results and unchanged debt
+
+Commands below ran from `C:/Users/prabh/GitHub-primary/infflow-calendar/calendar-worker/web`, except the identity and audit scripts under `E`. `E/run.cjs` records exact commands, working directories, exit codes and logs and supplies `NODE_OPTIONS=--require=<absolute E/offline-guard.cjs>`. The preload refuses real fetch, WebSocket and HTTP/HTTPS/TCP/TLS/UDP; source fixtures replace only inert I/O boundaries. Node 22.14.0, TypeScript 5.9.2, ESLint 8.57.1 and Vite 5.4.19 were used.
+
+| Command | Result / evidence |
+|---|---|
+| `node --test --test-name-pattern=90 tests/protected-hexa-bridge.test.mjs` before the fix | **Expected FAIL: 0/1**, clock regression; `regression-before-clock.log` |
+| `npm.cmd test` — full existing registration, all nine files | **61/61 PASS**, 0 skipped/cancelled; `full-tests.log` |
+| `.\node_modules\.bin\tsc.cmd --noEmit` | **PASS**; `frontend-types.log`; repeated by build |
+| `.\node_modules\.bin\tsc.cmd --noEmit --strict --target ES2022 --module ESNext --moduleResolution bundler --lib ES2022,DOM --skipLibCheck ..\worker\protectedHexa\routes.ts ..\worker\protectedHexa\calendarContext.ts` | **PASS**; `seam-types.log` |
+| `.\node_modules\.bin\eslint.cmd --config .eslintrc.cjs --no-ignore --max-warnings 0 src/lib/protectedHexaBridge.ts ../worker/protectedHexa/routes.ts` | **PASS**; `changed-ts-lint.log` |
+| `.\node_modules\.bin\eslint.cmd --env node --no-ignore --max-warnings 0 tests/protected-hexa-bridge.test.mjs tests/protected-hexa-server.test.mjs tests/protected-hexa-component.test.mjs` | **PASS**; `changed-js-lint.log` |
+| `npm.cmd run lint`, before/after | **Existing FAIL: 19 errors / 6 warnings**, byte-identical findings; `baseline-lint.log`, `final-lint.log`, `debt-comparison.json` |
+| `.\node_modules\.bin\tsc.cmd --noEmit --target ES2022 --module ESNext --moduleResolution bundler --lib ES2022,DOM --skipLibCheck ..\worker\index.ts`, before/after | **Existing FAIL: same 3 errors**, byte-identical logs; `baseline-worker-types.log`, `final-worker-types.log` |
+| `npm.cmd run build` (ordinary protected host build; no release override) | **PASS** on approved local filesystem retry; TypeScript + Vite + appended `scan:protected`; `build-approved-retry.log` |
+| Appended `node scripts/protected-hexa-build-scan.mjs dist` | **PASS: 48 files, 50 markers, 0 findings** |
+| `node E/artifact-audit.mjs` from Calendar root, with the offline preload | **PASS: every emitted file, 59 markers, 76 positive fixtures, 0 findings**; `artifact-audit-current.log`, `artifact-audit.json` |
+| `node E/identity.cjs entry`, `pre-report`, `final`; preservation comparison; `git diff --check` and scoped diff review | **PASS**; all reference/owner files and unrelated Calendar files preserved; report history retained byte-for-byte |
+
+The nine test files are date-range, diagnostic redaction, build-scan, server, bridge, v2 integration, transcript, tool parity and component. `tests/protected-hexa-transcript.test.mjs` remains unchanged and runs Hexa's version-4 `protected-voice-session-integration.test.ts`, including **`protected spoken transcript deltas reach the voice bubble once, not once per subscription`**. The tool-parity harness and its three registered Hexa test names are unchanged and all pass, including the historical name ending `core hosts get only Hexa tools`; its current sealed assertions, rather than its older title, define the proof. The actual RPC/serialized DO/controller/adapter/receipt and Text/Voice paths ran locally with inert storage/provider/transport/media/delivery boundaries.
+
+Whole Worker debt remains `routes/echo.ts(32,65)` and `routes/seed.ts(14,34)` unknown-to-string, and `services/weather-service.ts(135,23)` missing `WeatherData.current_weather`. No unrelated debt was repaired. The first build was denied esbuild ancestor/config reads by the filesystem sandbox; the same authorized offline command passed with approved filesystem access. Existing stale Browserslist and large-chunk warnings remain. No remote Mermaid bytes were fetched.
+
+The supplemental evidence audit derives CURRENT Hexa, Calendar and both Chesky marker sets, permits only Calendar's intended shared public origin, and adds Calendar framing/private RPC/tool markers. One newer Chesky marker, `https://hexa-worker-v2-protected.prabhatravib.workers.dev`, is absent from Calendar's existing 50-marker shipping scanner; it is included and passes in this 59-marker audit. The shipping scanner is unchanged in this clock-only fix. An initial evidence-audit equality assertion exposed that difference; its failed log is preserved. Credential patterns, source/config/map paths and source-map references also have positive controls. This is emitted-artifact proof only.
+
+New Calendar **48-file artifact manifest aggregate**, ordinal `path:sha256`, LF join, no trailing LF:
+
+`897e59ff7582b8d348f8c499576c4e23ec3652f1c3e42872beb947ff1614eac6`
+
+Entry chunk is now `assets/index-yfX7fNwD.js`; individual hashes are in `E/artifact-audit.json`. Source manifest aggregate excluding this report: `7c0a8fe6f2e9366ed0ab1cf2c64f886e750521d72b37ab1e10f0397e5dae4b21`.
+
+Changed files: `calendar-worker/worker/protectedHexa/routes.ts`; `calendar-worker/web/src/lib/protectedHexaBridge.ts`; `calendar-worker/web/tests/protected-hexa-bridge.test.mjs`, `protected-hexa-server.test.mjs`, `protected-hexa-component.test.mjs`; this report. Component changes are only the bootstrap fixture's required sibling clock. No dependency, config, package script, transcript test, tool-parity name or shared/reference implementation changed.
+
+## Future Calendar deployment and protected-compatible recovery — NOT EXECUTED
+
+These are concrete future commands, **not authorization**. Prompt 11 must first reconcile current host/shared versions, served version-4 artifacts, exact origins, private bindings, namespace/cleanup responsibilities, source/artifact identities and an accepted rollout interval. Preserve D1, dormant data, protected namespaces, cleanup credentials and alarms. No current protected-compatible Calendar rollback version has been established; legacy `054aee41` is not a recovery target. Calendar can roll out independently after its own gates and separate approval; do not replay the completed shared switch.
+
+**Future host deploy — NOT EXECUTED**, after separate rollout approval and a fresh local rebuild/scan of the approved bytes:
+
+```powershell
+Set-Location C:\Users\prabh\GitHub-primary\infflow-calendar\calendar-worker
+.\node_modules\.bin\wrangler.cmd deploy --config .\wrangler.jsonc --name infflow-calendar
+```
+
+**Protected-compatible recovery: reviewed roll-forward — NOT EXECUTED.** Prepare and validate a scoped fix retaining this protected iframe/binding pair, owned RPCs, strict grant and version-2 revision/grant/generation receipts, rebuild/scan `web/dist`, then obtain separate recovery approval and use the same explicit target:
+
+```powershell
+Set-Location C:\Users\prabh\GitHub-primary\infflow-calendar\calendar-worker
+.\node_modules\.bin\wrangler.cmd deploy --config .\wrangler.jsonc --name infflow-calendar
+```
+
+A later rollback command requires a freshly verified protected-compatible host version ID; none is invented here. A reference-target recovery needs its own reviewed iframe-origin/private-binding pair and approval. Never recover by publishing legacy routes/assets, bearer-only fallback, redirects, namespace deletion/transfer, a D1 change or removal of cleanup credentials.
+
+## Remaining evidence and acceptance
+
+Offline seal, full mocked suite, scoped types/lint, build and exact artifact scans **PASS**, with unchanged debt as above. Deployment/current live versions and bindings, browser/UI and non-Chrome, real provider, microphone/audio/playback/lipsync/latency/termination, live confidentiality/prompt-injection behavior, human listening and owner acceptance remain **UNVERIFIED** separately. Creator-contact cause-text differences, bounded-wire refusals, dormant `ROLE_DETECTED`, dormant legacy data and the spike Worker remain the shared contract's unchanged owner items.
+
+After a separately approved rollout, reload pre-deploy tabs and verify slow-clock bootstrap, latest-context loaded state, typed Text/spoken Voice and tool continuations, single spoken transcript publication, native power/curtains/prewarm, hide/show/reset/reload and expiry, ordinary Calendar navigation/CRUD/weather/persistence and safe diagnostic export. Confirm an available browser runtime before any future visual verification. This task loaded no page and performed no live/provider/audio check.
+
+---
+
 # Calendar protected Hexa — coordinated live migration preflight
 
 **PREFLIGHT COMPLETE. OWNER DECISION: HOLD. NOTHING DEPLOYED.** The owner was asked one approval question covering the plan in §9. They chose the recommended option: hold, and prepare the other host migrations first. No deployment, live session or browser application load followed. Both Workers stay as read in §3: `hexa-worker-v2` legacy `478b8d8e`, `infflow-calendar` legacy `054aee41`. Calendar keeps today's working legacy Hexa, and the eight other hosts keep theirs. The next step is to prepare their migrations (host prompts 01 and 03–09) and resolve Email's origin (§7). Then repeat this preflight against fresh live state. The §9 commands and budget are not approved and must not be run from this report.

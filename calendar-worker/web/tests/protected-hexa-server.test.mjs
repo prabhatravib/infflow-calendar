@@ -178,7 +178,12 @@ test('host projects validated grants/stored results with fixed server ownership 
     setContext() { assert.fail('Bearer-only fallback is forbidden'); },
   };
   const result = await h.request('/api/hexa/session', {});
-  assert.equal(result.status, 201); assert.deepEqual(await result.json(), { grant });
+  assert.equal(result.status, 201);
+  const bootstrap = await result.json();
+  assert.deepEqual(Object.keys(bootstrap).sort(), ['grant', 'serverNow']);
+  assert.deepEqual(bootstrap.grant, grant);
+  assert.ok(Number.isSafeInteger(bootstrap.serverNow) && bootstrap.serverNow > 0);
+  assert.ok(grant.expiresAt > bootstrap.serverNow && grant.expiresAt <= bootstrap.serverNow + 7_200_000);
   assert.deepEqual(calls[0], ['normal', origin, 'calendar']);
   const stored = await h.request('/api/hexa/context', { sessionId: id, calendar: fixture() }, { authorized: true });
   assert.equal(stored.status, 200);
@@ -198,4 +203,27 @@ test('host projects validated grants/stored results with fixed server ownership 
   h.env.HEXA_PROTECTED_CONTROL.setContextForOwner = async () => { throw new Error('PRIVATE_PROVIDER_CONTEXT_CAPABILITY'); };
   const response = await h.request('/api/hexa/context', { sessionId: id, calendar: fixture() }, { authorized: true });
   assert.equal(response.status, 503); assert.equal(await response.text(), '{"error":"calendar_context_contract_unavailable"}');
+});
+
+test('session route validates and returns the same single clock reading after grant creation', async () => {
+  const previousNow = Date.now;
+  const serverNow = 1_800_000_000_000;
+  const grant = { id, capability, mode: 'normal', parentOrigin: origin, expiresAt: serverNow + 7_200_000 };
+  try {
+    for (const [expiresAt, status] of [[grant.expiresAt, 201], [grant.expiresAt + 1, 503], [serverNow, 503]]) {
+      const h = harness(); let created = false, readings = 0;
+      Date.now = () => {
+        assert.equal(created, true, 'clock read must follow createSession');
+        return serverNow + readings++;
+      };
+      h.env.HEXA_PROTECTED_CONTROL = {
+        async createSession() { created = true; return { ...grant, expiresAt }; },
+        async setContextForOwner() { assert.fail('Session route must not update context'); },
+      };
+      const result = await h.request('/api/hexa/session', {});
+      assert.equal(result.status, status);
+      assert.equal(readings, 1);
+      assert.deepEqual(await result.json(), status === 201 ? { grant, serverNow } : { error: 'calendar_context_contract_unavailable' });
+    }
+  } finally { Date.now = previousNow; }
 });

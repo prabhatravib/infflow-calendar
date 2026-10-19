@@ -20,12 +20,12 @@ const response = (value: unknown, status = 200) => new Response(JSON.stringify(v
 function record(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
-function grantResult(value: unknown): CalendarGrant {
+function grantResult(value: unknown, serverNow: number): CalendarGrant {
   if (!record(value) || Object.keys(value).sort().join(',') !== 'capability,expiresAt,id,mode,parentOrigin' ||
       typeof value.id !== 'string' || !ID.test(value.id) || typeof value.capability !== 'string' || !ID.test(value.capability) ||
       value.mode !== 'normal' || value.parentOrigin !== CALENDAR_PARENT_ORIGIN ||
       typeof value.expiresAt !== 'number' || !Number.isSafeInteger(value.expiresAt) ||
-      value.expiresAt <= Date.now() || value.expiresAt > Date.now() + 7_200_000) throw new Error('invalid_grant');
+      value.expiresAt <= serverNow || value.expiresAt > serverNow + 7_200_000) throw new Error('invalid_grant');
   return { id: value.id, capability: value.capability, mode: 'normal', expiresAt: value.expiresAt, parentOrigin: CALENDAR_PARENT_ORIGIN };
 }
 function storedResult(value: unknown, expectedHash: string): CalendarContextReceipt {
@@ -92,7 +92,9 @@ protectedHexaRouter.all('/api/hexa/*', async c => {
   }
   try {
     if (context === undefined) {
-      return response({ grant: grantResult(await binding.createSession('normal', CALENDAR_PARENT_ORIGIN, 'calendar')) }, 201);
+      const issued = await binding.createSession('normal', CALENDAR_PARENT_ORIGIN, 'calendar');
+      const serverNow = Date.now();
+      return response({ grant: grantResult(issued, serverNow), serverNow }, 201);
     }
     const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(context));
     const hash = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
